@@ -18,7 +18,6 @@ TypeName = String
 --------------------------------------------------------------------------------
 
 data Expr : Set where
-  EEmpty : Expr
   Var : IdName → Expr
   Field : Expr → IdName → Expr
   Invk : Expr → IdName → List Expr → Expr
@@ -189,7 +188,6 @@ substV (x ∷ xs) (y ∷ ys) v with x ≟ v
 
 -- Substitution
 
-subst _ _ EEmpty = EEmpty
 subst p v (Var x) = substV p v x
 subst p v (Field e f) = Field (subst p v e) f
 subst p v (Invk e m ap) = Invk (subst p v e) m (substL p v ap)
