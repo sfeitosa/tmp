@@ -115,7 +115,19 @@ Inductive InMethods : list MethodDef -> IdName -> MethodDef -> Prop :=
   | IMStep : forall m mn meths m',
         InMethods meths mn m
      -> InMethods (m' :: meths) mn m           
-  .  
+  .
+
+(* Check if a method 'm' is in a method list *)
+
+Inductive NotInMethods : list MethodDef -> IdName -> Prop :=
+  | NIMBase : forall mn,
+        NotInMethods nil mn
+  | NIMStep : forall m mn meths,
+        mname m <> mn
+     -> NotInMethods meths mn
+     -> NotInMethods (m :: meths) mn
+  .
+  
 
 (* Method type lookup *)
 
@@ -126,7 +138,7 @@ Inductive mtype : CT -> TypeName -> IdName -> (list TypeName * TypeName) -> Prop
      -> mtype CT C m (fst (split (mparams MD)) , mreturns MD)
   | MTSuper : forall CT C m CD MT,
         InCT CT C CD
-        (* Method 'm' is not in class 'C'? *)   
+     -> NotInMethods (cmethods CD) m
      -> mtype CT (cextends CD) m MT
      -> mtype CT C m MT
   .
@@ -140,7 +152,7 @@ Inductive mbody : CT -> TypeName -> IdName -> (list IdName * Expr) -> Prop :=
      -> mbody CT C m (snd (split (mparams MD)) , mexpr MD)
   | MBSuper : forall CT C m CD MT,
         InCT CT C CD
-        (* Method 'm' is not in class 'C'? *)
+     -> NotInMethods (cmethods CD) m
      -> mbody CT (cextends CD) m MT
      -> mbody CT C m MT
   .
@@ -259,13 +271,22 @@ Inductive infer : CT -> Context -> Expr -> FJType -> Prop :=
 (* Method typing *)
   
 Inductive MethodOk : CT -> ClassDef -> MethodDef -> Prop :=
-  | MOk : forall CT CD MD E G Gf Gs,
+  | MOkClass : forall CT CD DD MD E G Gf Gs,
           Gf = snd (split (mparams MD))
        -> Gs = map (fun x => TypeClass x) (fst (split (mparams MD)))
        -> G = ("this", TypeClass (cname CD)) :: (combine Gf Gs)
        -> infer CT G (mexpr MD) E
        -> subtyping CT (tname E) (mreturns MD)
-          (* test if superclass signature is the same as this *)
+       -> InCT CT (cextends CD) DD
+       -> NotInMethods (cmethods DD) (mname MD)
+       -> MethodOk CT CD MD
+  | MOkSuper : forall CT CD MD E G Gf Gs m,
+          Gf = snd (split (mparams MD))
+       -> Gs = map (fun x => TypeClass x) (fst (split (mparams MD)))
+       -> G = ("this", TypeClass (cname CD)) :: (combine Gf Gs)
+       -> infer CT G (mexpr MD) E
+       -> subtyping CT (tname E) (mreturns MD)
+       -> mtype CT (cextends CD) m (fst (split (mparams MD)), mreturns MD)
        -> MethodOk CT CD MD
   .
   
@@ -280,3 +301,4 @@ Inductive ClassOk : CT -> ClassDef -> Prop :=
      -> Forall (MethodOk CT CD) (cmethods CD)
      -> ClassOk CT CD
   .
+
