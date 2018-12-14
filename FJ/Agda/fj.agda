@@ -55,21 +55,18 @@ data Value : Expr → Set where
 
 -- Class table
 
-data CT : Set where
-  CTEmpty : CT
-  CTContent : CT → IdName → ClassDef → CT
+CT : Set
+CT = List (IdName × ClassDef)
 
 -- Class table lookup
 
 data InCT : CT → IdName → ClassDef → Set where
-  CTZ : ∀ {ct cn cd}
-        -------------
-      → InCT (CTContent ct cn cd) cn cd
-  CTS : ∀ {ct cn cd cn' cd'}
-      → cn ≢ cn'
-      → InCT ct cn cd
-        ---------------------
-      → InCT (CTContent ct cn' cd') cn cd
+  CTBase : ∀ {C CD L}      
+     → InCT ((C , CD) ∷ L) C CD
+  CTStep : ∀ {C C' CD CD' L}
+     → InCT L C CD
+       ------------------
+     → InCT ((C' , CD') ∷ L) C CD
 
 --------------------------------------------------------------------------------
 ----------------------- AUXILIARY DEFINITIONS ----------------------------------
@@ -81,101 +78,102 @@ data subtypingL : CT → List TypeName → List TypeName → Set
 -- Subtyping relation
 
 data subtyping where
-  SRefl : ∀ {ct c}
+  SRefl : ∀ {CT C}
          ----------
-        → subtyping ct c c
-  STrans : ∀ {ct c d e}
-         → subtyping ct c d
-         → subtyping ct d e
+        → subtyping CT C C
+  STrans : ∀ {CT C D E}
+         → subtyping CT C D
+         → subtyping CT D E
            -------------
-         → subtyping ct c e
-  SStep : ∀ {ct c d cd f k m}
-        → InCT ct c cd
-        → cd ≡ Class c d f k m
+         → subtyping CT C E
+  SStep : ∀ {CT C CD}
+        → InCT CT C CD
           --------------------
-        → subtyping ct c d
+        → subtyping CT C (ClassDef.extends CD)
 
 -- Checking subtyping for a list of types
 
 data subtypingL where
-  subtypingl_base : ∀ {ct}
-             → subtypingL ct [] []
-  subtypingl_step : ∀ {ct e e' l l'}
-            → subtypingL ct l l'
-            → subtyping ct e e'
-            → subtypingL ct (e ∷ l) (e' ∷ l')
-
--- Field lookup
-
-data fields : CT → TypeName → List (TypeName × IdName) → Set where
-  FObject : ∀ {ct}
-         → fields ct "Object" []
-  FClass : ∀ {c cd ct}
-         → InCT ct c cd
-         → fields ct c (ClassDef.fields cd)
+  subtypingl_base : ∀ {CT}
+             → subtypingL CT [] []
+  subtypingl_step : ∀ {CT e e' l l'}
+            → subtypingL CT l l'
+            → subtyping CT e e'
+            → subtypingL CT (e ∷ l) (e' ∷ l')
 
 -- Get a field type from a field list
 
 data InFields : List (TypeName × IdName) → IdName → TypeName → Set where
-  FZ : ∀ {tflds f t}
-       -----------
-     → InFields ((t , f) ∷ tflds) f t
-  FS : ∀ {flds f t f' t'}
-     → f ≢ f'
+  IFBase : ∀ {f t flds}
+     → InFields ((t , f) ∷ flds) f t
+  IFStep : ∀ {f f' t t' flds}
      → InFields flds f t
        ------------------
      → InFields ((t' , f') ∷ flds) f t
 
+-- Field lookup
+
+data fields : CT → TypeName → List (TypeName × IdName) → Set where
+  FObject : ∀ {CT}
+         → fields CT "Object" []
+  FClass : ∀ {CT C CD fd}
+         → InCT CT C CD
+         → fields CT (ClassDef.extends CD) fd
+         → fields CT C (fd ++ (ClassDef.fields CD))
+
 -- Get a method from a method list
 
 data InMethods : List MethodDef → IdName → MethodDef → Set where
-  MZ : ∀ {m mn meths r p e}
-     → m ≡ Method r mn p e
-       -----------
+  IMBase : ∀ {m mn meths}
+     → MethodDef.name m ≡ mn
      → InMethods (m ∷ meths) mn m
-  MS : ∀ {m mn m' meths}
-     → m ≢ m'
+  IMStep : ∀ {m mn meths m'}
      → InMethods meths mn m
        ------------------
      → InMethods (m' ∷ meths) mn m
 
+-- Check if a method 'm' is not in a method list
+
+data NotInMethods : List MethodDef → IdName → Set where
+  NIMBase : ∀ {mn}
+     → NotInMethods [] mn
+  NIMStep : ∀ {m mn meths}
+     → MethodDef.name m ≢ mn
+     → NotInMethods meths mn
+     → NotInMethods (m ∷ meths) mn
+
 -- Method type lookup
 
 data mtype : CT → TypeName → IdName → (List TypeName × TypeName) → Set where
-  MTClass : ∀ {ct c m md ml cn ce f k}
-          → InCT ct c (Class cn ce f k ml)
-          → InMethods ml m md
-          → mtype ct c m (Σ.proj₁ (unzip (MethodDef.params md)) , MethodDef.returns md)
-  MTSuper : ∀ {ct c cn ce f k m ml mt}
-          → InCT ct c (Class cn ce f k ml)
-          -- Method 'm' is not in class 'c' ?
-          → mtype ct ce m mt
+  MTClass : ∀ {CT C m CD MD}
+          → InCT CT C CD
+          → InMethods (ClassDef.methods CD) m MD
+          → mtype CT C m (Σ.proj₁ (unzip (MethodDef.params MD)) , MethodDef.returns MD)
+  MTSuper : ∀ {CT C m CD MT}
+          → InCT CT C CD
+          → NotInMethods (ClassDef.methods CD) m
+          → mtype CT (ClassDef.extends CD) m MT
             ---------------------------
-          → mtype ct c m mt
+          → mtype CT C m MT
 
 
 -- Method body lookup
 
 data mbody : CT → TypeName → IdName → (List IdName × Expr) → Set where
-  MBClass : ∀ {ct c m md ml cn ce f k}
-          → InCT ct c (Class cn ce f k ml)
-          → InMethods ml m md
-          → mbody ct c m (Σ.proj₂ (unzip (MethodDef.params md)) , MethodDef.expr md)
-  MBSuper : ∀ {ct c cn ce f k m ml mb}
-          → InCT ct c (Class cn ce f k ml)
-          -- Method 'm' is not in class 'c' ?
-          → mbody ct ce m mb
+  MBClass : ∀ {CT C m CD MD}
+          → InCT CT C CD
+          → InMethods (ClassDef.methods CD) m MD
+          → mbody CT C m (Σ.proj₂ (unzip (MethodDef.params MD)) , MethodDef.expr MD)
+  MBSuper : ∀ {CT C m CD MT}
+          → InCT CT C CD
+          → NotInMethods (ClassDef.methods CD) m
+          → mbody CT (ClassDef.extends CD) m MT
             ---------------------------
-          → mbody ct c m mb
+          → mbody CT C m MT
 
 --------------------------------------------------------------------------------
 -------------------------- EVALUATION DEFINITIONS ------------------------------
 --------------------------------------------------------------------------------
-
--- Definitions for mutual recursion
-
-subst : List IdName → List Expr → Expr → Expr
-substL : List IdName → List Expr → List Expr → List Expr
 
 -- Substitution of a variable from lists of names and expressions
 
@@ -185,6 +183,11 @@ substV _ [] x = (Var x)
 substV (x ∷ xs) (y ∷ ys) v with x ≟ v
 ... | yes _ = y
 ... | no _ = substV xs ys v
+
+-- Definitions for mutual recursion
+
+subst : List IdName → List Expr → Expr → Expr
+substL : List IdName → List Expr → List Expr → List Expr
 
 -- Substitution
 
@@ -198,58 +201,58 @@ subst p v (New c ap) = New c (substL p v ap)
 substL p v [] = []
 substL p v (x ∷ xs) = subst p v x ∷ substL p v xs
 
+-- Get the expression according to its position in the constructor parameters
+
+data PickField : List IdName → List Expr → IdName → Expr → Set where
+  PFBase : ∀ {e es n ns}
+         → PickField (n ∷ ns) (e ∷ es) n e
+  PFStep : ∀ {e e' es n n' ns}
+         → PickField ns es n e
+         → PickField (n' ∷ ns) (e' ∷ es) n e
+
 -- Definitions for mutual recursion
 
 data step : CT → Expr → Expr → Set
 data StepL : CT → List Expr → List Expr → Set
 
--- Get the expression according to its position in the constructor parameters
-
-data rfield : List IdName → List Expr → IdName → Expr → Set where
-  rfield_base : ∀ {e es n ns}
-              → rfield (n ∷ ns) (e ∷ es) n e
-  rfield_step : ∀ {e e' es n n' ns}
-              → rfield ns es n e
-              → rfield (n' ∷ ns) (e' ∷ es) n e
-
 -- Evaluation
 
 data step where
-  RC_Field : ∀ {ct e e' f}
-           → step ct e e'
-             --------------
-           → step ct (Field e f) (Field e' f)
-  R_Field : ∀ {ct c flds f fi p}
-          → fields ct c flds
-          → rfield (Σ.proj₂ (unzip flds)) p f fi
-            -----------------
-          → step ct (Field (New c p) f) fi
-  R_Invk : ∀ {ct c e m pc pm pn}
-         → mbody ct c m (pn , e)
+  RCField : ∀ {CT e e' f}
+          → step CT e e'
+            --------------
+          → step CT (Field e f) (Field e' f)
+  RField : ∀ {CT C f flds ap fi}
+         → fields CT C flds
+         → PickField (Σ.proj₂ (unzip flds)) ap f fi
+           -----------------
+         → step CT (Field (New C ap) f) fi
+  RInvk : ∀ {CT C e m pc pm pn}
+        → mbody CT C m (pn , e)
            ----------------------
-         → step ct (Invk (New c pc) m pm) (subst ("this" ∷ pn) ((New c pc) ∷ pm) e)
-  RC_Invk_Recv : ∀ {ct e e' m pm}
-               → step ct e e'
-                 -----------------
-               → step ct (Invk e m pm) (Invk e' m pm)
-  RC_Invk_Arg : ∀ {ct e m pm pm'}
-              → StepL ct pm pm'
-                ----------------
-              → step ct (Invk e m pm) (Invk e m pm')
-  RC_New_Arg : ∀ {ct c pc pc'}
-             → StepL ct pc pc'
-               ----------------
-             → step ct (New c pc) (New c pc')
+        → step CT (Invk (New C pc) m pm) (subst ("this" ∷ pn) ((New C pc) ∷ pm) e)
+  RCInvkRecv : ∀ {CT e e' m pm}
+             → step CT e e'
+               -----------------
+             → step CT (Invk e m pm) (Invk e' m pm)
+  RCInvkArg : ∀ {CT e m pm pm'}
+              → StepL CT pm pm'
+              ----------------
+              → step CT (Invk e m pm) (Invk e m pm')
+  RCNewArg : ∀ {CT C pc pc'}
+           → StepL CT pc pc'
+             ----------------
+           → step CT (New C pc) (New C pc')
 
 -- Steping each element of a list
 
 data StepL where
-  stepl_base : ∀ {ct}
-             → StepL ct [] []
-  stepl_step : ∀ {ct e e' l l'}
-            → StepL ct l l'
-            → step ct e e'
-            → StepL ct (e ∷ l) (e' ∷ l')
+  stepl_base : ∀ {CT}
+             → StepL CT [] []
+  stepl_step : ∀ {CT e e' l l'}
+            → StepL CT l l'
+            → step CT e e'
+            → StepL CT (e ∷ l) (e' ∷ l')
 
 --------------------------------------------------------------------------------
 --------------------------- TYPING DEFINITIONS ---------------------------------
@@ -262,61 +265,89 @@ data Type : Set where
 
 -- Gamma context
 
-data Context : Set where
-  CEmpty : Context
-  CGamma : Context → IdName → Type → Context
+Context : Set
+Context = List (IdName × Type)
 
 -- Context lookup
 
 data InContext : Context → IdName → Type → Set where
-  CZ : ∀ {Gamma x A}
-      --------------------
-    → InContext (CGamma Gamma x A) x A
-  CS : ∀ {Gamma x y A B}
-    → x ≢ y
-    → InContext Gamma x A
-      --------------------
-    → InContext (CGamma Gamma y B) x A
+  ICBase : ∀ {G x C}
+         → InContext ((x , C) ∷ G) x C
+  ICStep : ∀ {G x y C D}
+         → InContext G x C
+         → InContext ((y , D) ∷ G) x C
 
 -- Definitions for mutual recursion
 
-data has_type : CT → Context → Expr → Type → Set
-data has_typeL : CT → Context → List Expr → List Type → Set
+data infer : CT → Context → Expr → Type → Set
+data inferL : CT → Context → List Expr → List Type → Set
 
 -- Typing
 
-data has_type where
-  TVar : ∀ {ct Gamma x t}
-       → InContext Gamma x t
+data infer where
+  TVar : ∀ {CT G x C}
+       → InContext G x C
          -----------------
-       → has_type ct Gamma (Var x) t
-  TField : ∀ {ct Gamma e c f t flds}
-         → has_type ct Gamma e (TypeClass c)
-         → fields ct c flds
-         → InFields flds f t
+       → infer CT G (Var x) C
+  TField : ∀ {CT G C Ci e f flds}
+         → infer CT G e (TypeClass C)
+         → fields CT C flds
+         → InFields flds f Ci
            ------------------------
-         → has_type ct Gamma (Field e f) (TypeClass t)
-  TInvk : ∀ {ct Gamma e c m mt pm pm'}
-        → has_type ct Gamma e (TypeClass c)
-        → mtype ct c m mt
-        → has_typeL ct Gamma pm pm'
-        → subtypingL ct (Data.List.map (λ { (TypeClass t) → t}) pm') (Σ.proj₁ mt)
+         → infer CT G (Field e f) (TypeClass Ci)
+  TInvk : ∀ {CT G C e m mt pm pm'}
+        → infer CT G e (TypeClass C)
+        → mtype CT C m mt
+        → inferL CT G pm pm'
+        → subtypingL CT (Data.List.map (λ { (TypeClass t) → t}) pm') (Σ.proj₁ mt)
           -----------------------------
-        → has_type ct Gamma (Invk e m pm) (TypeClass (Σ.proj₂ mt))
-  TNew : ∀ {ct Gamma c flds pc pc'}
-       → fields ct c flds
-       → has_typeL ct Gamma pc pc'
-       → subtypingL ct (Data.List.map (λ { (TypeClass t) → t }) pc') (Σ.proj₁ (unzip flds))
+        → infer CT G (Invk e m pm) (TypeClass (Σ.proj₂ mt))
+  TNew : ∀ {CT G C flds pc pc'}
+       → fields CT C flds
+       → inferL CT G pc pc'
+       → subtypingL CT (Data.List.map (λ { (TypeClass t) → t }) pc') (Σ.proj₁ (unzip flds))
          ----------------------------
-       → has_type ct Gamma (New c pc) (TypeClass c)
+       → infer CT G (New C pc) (TypeClass C)
 
 -- Typing a list
 
-data has_typeL where
-  has_typel_base : ∀ {ct gamma}
-             → has_typeL ct gamma [] []
-  has_typel_step : ∀ {ct gamma e e' l l'}
-            → has_typeL ct gamma l l'
-            → has_type ct gamma e e'
-            → has_typeL ct gamma (e ∷ l) (e' ∷ l')
+data inferL where
+  ILBase : ∀ {CT G}
+             → inferL CT G [] []
+  ILStep : ∀ {CT G e e' l l'}
+            → inferL CT G l l'
+            → infer CT G e e'
+            → inferL CT G (e ∷ l) (e' ∷ l')
+
+-- Method typing
+
+data MethodOk : CT → ClassDef → MethodDef → Set where
+  MOkClass : ∀ {CT CD DD MD E G Gf Gs}
+           → Gf ≡ Σ.proj₂ (unzip (MethodDef.params MD))
+           → Gs ≡ Data.List.map (λ x → TypeClass x) (Σ.proj₁ (unzip (MethodDef.params MD)))
+           → G ≡ ("this", TypeClass (ClassDef.name CD)) ∷ (Data.List.zip Gf Gs)
+           → infer CT G (MethodDef.expr MD) (TypeClass E)
+           → subtyping CT E (MethodDef.returns MD)
+           → InCT CT (ClassDef.extends CD) DD
+           → NotInMethods (ClassDef.methods DD) (MethodDef.name MD)
+           → MethodOk CT CD MD
+  MOkSuper : ∀ {CT CD MD E G Gf Gs m}
+           → Gf ≡ Σ.proj₂ (unzip (MethodDef.params MD))
+           → Gs ≡ Data.List.map (λ x → TypeClass x) (Σ.proj₁ (unzip (MethodDef.params MD)))
+           → G ≡ ("this", TypeClass (ClassDef.name CD)) ∷ (Data.List.zip Gf Gs)
+           → infer CT G (MethodDef.expr MD) (TypeClass E)
+           → subtyping CT E (MethodDef.returns MD)
+           → mtype CT (ClassDef.extends CD) m (Σ.proj₁ (unzip (MethodDef.params MD)), MethodDef.returns MD)
+           → MethodOk CT CD MD
+
+-- Class typing
+
+data ClassOk : CT → ClassDef → Set where
+  COk : ∀ {CT CD fD K}
+      → fields CT (ClassDef.extends CD) fD
+      → ConstrDef.params K ≡ fD ++ (ClassDef.fields CD)
+      → ConstrDef.super K ≡ Σ.proj₂ (unzip fD)
+      → ConstrDef.init K ≡ Data.List.zip (Σ.proj₂ (unzip (ClassDef.fields CD))) (Σ.proj₂ (unzip (ClassDef.fields CD)))
+      → All (MethodOk CT CD) (ClassDef.methods CD)
+      → ClassOk CT CD
 
