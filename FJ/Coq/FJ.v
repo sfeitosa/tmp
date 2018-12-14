@@ -295,7 +295,7 @@ Inductive MethodOk : CT -> ClassDef -> MethodDef -> Prop :=
 Inductive ClassOk : CT -> ClassDef -> Prop := 
   | COk : forall CT CD fD K,
         fields CT (cextends CD) fD 
-     -> kparams K = app (cfields CD) fD
+     -> kparams K = app fD (cfields CD)
      -> ksuper K = snd (split fD)
      -> kinit K = combine (snd (split (cfields CD))) (snd (split (cfields CD)))
      -> Forall (MethodOk CT CD) (cmethods CD)
