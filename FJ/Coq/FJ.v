@@ -55,19 +55,16 @@ Inductive Value : Expr -> Prop :=
 
 (* Class table definition *)
 
-Inductive CT : Type := 
-  | CTEmpty : CT
-  | CTContent : CT -> IdName -> ClassDef -> CT
-  .
+Definition CT := list (TypeName * ClassDef).
 
 (* Class table lookup *)
   
 Inductive InCT : CT -> IdName -> ClassDef -> Prop :=
-  | CTBase : forall CT CD c,
-               InCT (CTContent CT c CD) c CD
-  | CTStep : forall CT CD CD' c c',
-               InCT CT c CD
-            -> InCT (CTContent CT c' CD') c CD
+  | CTBase : forall C CD L,
+        InCT ((C, CD) :: L) C CD
+  | CTStep : forall C C' CD CD' L,
+        InCT L C CD
+     -> InCT ((C', CD') :: L) C CD
   .
   
 (* ============================================================== *)
@@ -103,9 +100,10 @@ Inductive InFields : list (TypeName * IdName) -> IdName -> TypeName -> Prop :=
 Inductive fields : CT -> TypeName -> list (TypeName * IdName) -> Prop :=
   | FObject : forall CT,
         fields CT "Object" nil
-  | FClass : forall CT C CD,
+  | FClass : forall CT C CD fd,
         InCT CT C CD
-     -> fields CT C (cfields CD)
+     -> fields CT (cextends CD) fd
+     -> fields CT C (fd ++ (cfields CD))
   .
 
 (* Get a method from a method list by its name *)
@@ -221,20 +219,17 @@ Record FJType : Type := TypeClass {
 }.
 
 (* Gamma context *)
-  
-Inductive Context : Type :=
-  | CEmpty : Context
-  | CGamma : Context -> IdName -> FJType -> Context
-  .
+
+Definition Context := (list (IdName * FJType)).
 
 (* Context lookup *)
 
 Inductive InContext : Context -> IdName -> FJType -> Prop :=
   | ICBase : forall G x C,
-        InContext (CGamma G x C) x C
+        InContext ((x, C) :: G) x C  
   | ICStep : forall G x y C D,
         InContext G x C
-     -> InContext (CGamma G y D) x C
+     -> InContext ((y, D) :: G) x C
   .
 
 (* Typing *)
@@ -259,4 +254,29 @@ Inductive infer : CT -> Context -> Expr -> FJType -> Prop :=
      -> Forall2 (infer CT G) pc pc'
      -> Forall2 (subtyping CT) (map (fun t => tname t) pc') (fst (split flds))
      -> infer CT G (New C pc) (TypeClass C)
+  .
+  
+(* Method typing *)
+  
+Inductive MethodOk : CT -> ClassDef -> MethodDef -> Prop :=
+  | MOk : forall CT CD MD E G Gf Gs,
+          Gf = snd (split (mparams MD))
+       -> Gs = map (fun x => TypeClass x) (fst (split (mparams MD)))
+       -> G = ("this", TypeClass (cname CD)) :: (combine Gf Gs)
+       -> infer CT G (mexpr MD) E
+       -> subtyping CT (tname E) (mreturns MD)
+          (* test if superclass signature is the same as this *)
+       -> MethodOk CT CD MD
+  .
+  
+(* Class typing *)
+  
+Inductive ClassOk : CT -> ClassDef -> Prop := 
+  | COk : forall CT CD fD K,
+        fields CT (cextends CD) fD 
+     -> kparams K = app (cfields CD) fD
+     -> ksuper K = snd (split fD)
+     -> kinit K = combine (snd (split (cfields CD))) (snd (split (cfields CD)))
+     -> Forall (MethodOk CT CD) (cmethods CD)
+     -> ClassOk CT CD
   .
