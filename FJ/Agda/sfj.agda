@@ -23,24 +23,24 @@ data Expr : Set where
 record ConstrDef : Set where
   constructor Constr
   field
-    class : Name
+    class  : Name
     params : List (Name × Name)
-    init : List (Name × Name)
+    init   : List (Name × Name)
 
 record MethodDef : Set where
   constructor Method
   field
     returns : Name
-    name : Name
-    params : List (Name × Name) 
-    expr : Expr
+    name    : Name
+    params  : List (Name × Name) 
+    expr    : Expr
 
 record ClassDef : Set where
   constructor Class
   field
-    name : Name
-    fields : List (Name × Name)
-    constr : ConstrDef
+    name    : Name
+    fields  : List (Name × Name)
+    constr  : ConstrDef
     methods : List MethodDef
 
 -- Value definition
@@ -146,9 +146,9 @@ substL p v (x ∷ xs) = subst p v x ∷ substL p v xs
 
 -- Get the expression according to its position in the constructor parameters
 
-data PickField : List Name → List Expr → Name → Expr → Set where
-  PFBase : ∀ {e es n ns}
-         → PickField (n ∷ ns) (e ∷ es) n e
+data PickField : List (Name × Name) → List Expr → Name → Expr → Set where
+  PFBase : ∀ {e es n ns t}
+         → PickField ((t , n) ∷ ns) (e ∷ es) n e
   PFStep : ∀ {e e' es n n' ns}
          → PickField ns es n e
          → PickField (n' ∷ ns) (e' ∷ es) n e
@@ -165,11 +165,11 @@ data step where
           → step CT e e'
             --------------
           → step CT (Field e f) (Field e' f)
-  RField : ∀ {CT C f flds ap fi}
+  RField : ∀ {CT C fi flds ap ei}
          → fields CT C flds
-         → PickField (Σ.proj₂ (unzip flds)) ap f fi
+         → PickField flds ap fi ei -- (Σ.proj₂ (unzip flds)) ap f fi
            -----------------
-         → step CT (Field (New C ap) f) fi
+         → step CT (Field (New C ap) fi) ei
   RInvk : ∀ {CT C e m pc pm pn}
         → mbody CT C m (pn , e)
            ----------------------
@@ -303,13 +303,13 @@ progress (TVar ())
 ---- Field
 progress (TField tyof flds inflds) with progress tyof
 progress (TField tyof flds inflds) | Step stp = Step (RCField stp)
-progress (TField tyof flds inflds) | Done (VNew x) = Step (RField {!!} {!!})
+progress (TField (TNew x₁ x₂ x₃) flds inflds) | Done (VNew x) = {!!} 
 ---- Invk
 progress (TInvk tyof mty infl pm) with progress tyof
 progress (TInvk tyof mty infl pm) | Step stp = Step (RCInvkRecv stp)
 progress (TInvk tyof mty infl pm) | Done val with progressL infl
 progress (TInvk tyof mty infl pm) | Done val | Step x = Step (RCInvkArg x)
-progress (TInvk tyof mty infl refl) | Done (VNew x) | Done valL = Step (RInvk (MBClass {!!} {!!}))
+progress (TInvk (TNew x₁ x₂ x₃) (MTClass x₄ x₅) infl refl) | Done (VNew x) | Done valL = Step (RInvk (MBClass x₄ x₅))
 ---- New
 progress (TNew flds infl pc) with progressL infl
 progress (TNew flds infl pc) | Step x = Step (RCNewArg x)
