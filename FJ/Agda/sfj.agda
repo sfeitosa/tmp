@@ -77,6 +77,13 @@ data InFields : List (Name × Name) → Name → Name → Set where
        ------------------
      → InFields ((t' , f') ∷ flds) f t
 
+data InFExprs : List (Name × Expr) → Name → Expr → Set where
+  IEBase : ∀ {f e fes}
+    → InFExprs ((f , e) ∷ fes) f e
+  IEStep : ∀ {f f' e e' fes}
+    → InFExprs fes f e
+    → InFExprs ((f' , e') ∷ fes) f e
+
 -- Field lookup
 
 data fields : CT → Name → List (Name × Name) → Set where
@@ -146,12 +153,20 @@ substL p v (x ∷ xs) = subst p v x ∷ substL p v xs
 
 -- Get the expression according to its position in the constructor parameters
 
+{-
 data PickField : List (Name × Name) → List Expr → Name → Expr → Set where
   PFBase : ∀ {e es n ns t}
          → PickField ((t , n) ∷ ns) (e ∷ es) n e
   PFStep : ∀ {e e' es n n' ns}
          → PickField ns es n e
          → PickField (n' ∷ ns) (e' ∷ es) n e
+-}
+
+data ZipFlds : List (Name × Name) → List Expr → List (Name × Expr) → Set where
+  ZFNil  : ZipFlds [] [] []
+  ZFCons : ∀ {flds es fes t f e}
+    → ZipFlds flds es fes
+    → ZipFlds ((t , f) ∷ flds) (e ∷ es) ((f , e) ∷ fes)
 
 -- Definitions for mutual recursion
 
@@ -165,9 +180,10 @@ data step where
           → step CT e e'
             --------------
           → step CT (Field e f) (Field e' f)
-  RField : ∀ {CT C fi flds ap ei}
+  RField : ∀ {CT C fi flds ap ei fes}
          → fields CT C flds
-         → PickField flds ap fi ei -- (Σ.proj₂ (unzip flds)) ap f fi
+         → ZipFlds flds ap fes
+         → InFExprs fes fi ei
            -----------------
          → step CT (Field (New C ap) fi) ei
   RInvk : ∀ {CT C e m pc pm pn}
@@ -303,7 +319,7 @@ progress (TVar ())
 ---- Field
 progress (TField tyof flds inflds) with progress tyof
 progress (TField tyof flds inflds) | Step stp = Step (RCField stp)
-progress (TField (TNew x₁ x₂ x₃) flds inflds) | Done (VNew x) = {!!} 
+progress (TField {flds = fs} (TNew x₁ x₂ x₃) flds inflds) | Done (VNew x) = Step (RField flds {!!} {!!})
 ---- Invk
 progress (TInvk tyof mty infl pm) with progress tyof
 progress (TInvk tyof mty infl pm) | Step stp = Step (RCInvkRecv stp)
