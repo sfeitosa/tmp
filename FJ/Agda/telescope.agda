@@ -100,22 +100,40 @@ lookupDB (x ∷ xs) (suc i) = lookupDB xs i
 
 -- Same as above
 lkp : ∀ {Δ Γ t ts} → All (Expr Δ Γ) ts → t ∈ ts → Expr Δ Γ t
-lkp (x ∷ xs) zero = x
-lkp (x ∷ xs) (suc i) = lkp xs i 
+lkp (x ∷ _) zero = x
+lkp (_ ∷ xs) (suc i) = lkp xs i
+
+lkp' : ∀ {Δ Δ₁ Γ} {t : Idx Δ₁} {ts : List (Idx Δ₁)} {fun : Idx Δ₁ → Idx Δ}
+    → All (Expr Δ Γ) (Data.List.map fun ts) → t ∈ ts → Expr Δ Γ (fun t)
+lkp' (x ∷ _) zero = x
+lkp' (_ ∷ xs) (suc i) = lkp' xs i
+
+
+{-
+concatAll : ∀ {P xs ys} → All P xs → All P ys → All P (xs ++ ys)
+concatAll [] ys = ys
+concatAll (x ∷ xs) ys = x ∷ concatAll xs ys
+-}
+
+{-
+concatAll' : ∀ {Δ Γ} {C : Idx Δ}
+               {xs : List (Idx Δ)} {ys : List (Idx Δ)} →
+             All (Expr Δ Γ) xs →
+             All (Expr Δ Γ) ys → All (Expr Δ Γ) (xs ++ ys)
+concatAll' [] ys = ys
+concatAll' (x ∷ xs) ys = x ∷ concatAll' xs ys
+-}
 
 {-# NON_TERMINATING #-}
 
 eval : (Δ : CT) → ∀ {Γ C} → Env Δ Γ → Expr Δ Γ C → Value Δ Γ C
 eval Δ env (Var idx) = lookup∈ env idx
-eval Δ env (Field {f = k} e f) with eval Δ env e
-... | (New C cp) with fields (WkClass.def (Δ ∋ C))
-... | flds with Data.List.map (lift (WkClass.proof (Δ ∋ C))) flds
-... | flds' with lift (WkClass.proof (Δ ∋ C)) k
-... | k' = {!!}
-eval Δ env (Invk {m = md} e m mp) with eval Δ env e
-... | (New C cp)  with methods (WkClass.def (Δ ∋ C))
-... | ms with Data.List.All.map (eval Δ env) mp
-... | mp' with expr md
-... | mb = eval Δ env {!!}
-eval Δ env (New C cp) = let cp' = Data.List.All.map (eval Δ env) cp
-                          in New C cp'
+eval Δ env (Field {f = f'} e f) with eval Δ env e -- RC-Field
+... | (New C cp) = lkp' cp f -- R-Field
+eval Δ env (Invk {m = md} e m mp) with eval Δ env e -- RC-Invk-Recv
+... | (New C cp) with Data.List.All.map (eval Δ env) mp -- RC-Invk-Arg
+... | mp' with (expr md)
+... | mb with Data.List.map (lift (WkClass.proof (Δ ∋ C))) (params md)
+... | lst = eval Δ env {!!} -- R-Invk
+eval Δ env (New C cp) with Data.List.All.map (eval Δ env) cp -- RC-New-Arg
+... | cp' = New C cp'
