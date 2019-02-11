@@ -110,35 +110,21 @@ lookupMap : ∀ {Δ Δ₁} {t : Idx Δ₁} {ts : List (Idx Δ₁)} {fun : Idx Δ
 lookupMap (x ∷ _) zero = x
 lookupMap (_ ∷ xs) (suc i) = lookupMap xs i
 
-{-
-liftCtx : ∀ {Δ Δ₁} → Δ₁ ⊆ Δ → Ctx Δ₁ → Ctx Δ
-liftCtx p [] = []
-liftCtx p (x ∷ xs) = lift p x ∷ liftCtx p xs 
+-- Lifting
 
-liftVar : ∀ {Δ₁} {C : Idx Δ₁} {Δ} {Γ : List (Idx Δ₁)}
-            (prf' : Δ₁ ⊆ Δ) →
-          C ∈ Γ → lift prf' C ∈ liftCtx prf' Γ
-liftVar p zero = zero
-liftVar p (suc idx) = suc (liftVar p idx)
+mapLiftEqId : ∀ {Δ} {Γ₁ : List (Idx Δ)} → Data.List.map (lift equal) Γ₁ ≡ Γ₁
+mapLiftEqId {Γ₁ = []} = refl
+mapLiftEqId {Γ₁ = x ∷ Γ₁} = {!!}
 
-liftExpr : ∀ {Δ Δ₁ Γ C} → {prf : Δ₁ ⊆ Δ} → Expr Δ₁ Γ C → Expr Δ (liftCtx prf Γ) (lift prf C)
-liftExpr {prf = prf'} (Var x) = Var (liftVar prf' x) 
-liftExpr {prf = prf'} (Field e f) = Field {!liftExpr e!} {!!}
-liftExpr {prf = prf'} (Invk e m mp) = Invk {!!} {!!} {!!}
-liftExpr {prf = prf'} (New C cp) = New (lift prf' C) {!!}
--}
+liftVar : ∀ {Δ Δ₁} {C₁ : Idx Δ₁} {Γ₁ : List (Idx Δ₁)} → (prf : Δ₁ ⊆ Δ) → C₁ ∈ Γ₁ → lift prf C₁ ∈ Data.List.map (lift prf) Γ₁
+liftVar equal idx = {!!}
+liftVar (more p) idx = {!!}
 
-liftExpr : ∀ {Δ} {C : Idx Δ} {md : Method (WkClass.Δ₁ (Δ ∋ C))}
-           {ret' : Idx (WkClass.Δ₁ (Δ ∋ C))}
-           {params' : List (Idx (WkClass.Δ₁ (Δ ∋ C)))} →
-           Expr (WkClass.Δ₁ (Δ ∋ C)) params' ret' →
-           Expr Δ (Data.List.map (lift (WkClass.proof (Δ ∋ C))) params')
-           (lift (WkClass.proof (Δ ∋ C)) ret')
-liftExpr (Var x) = {!!}
-liftExpr (Field e x) = {!!}
-liftExpr (Invk e x x₁) = {!!}
-liftExpr (New C x) = {!!}
-
+liftExpr : ∀ {Δ Δ₁ Γ₁} {C₁ : Idx Δ₁} → (prf : Δ₁ ⊆ Δ) → Expr Δ₁ Γ₁ C₁ → Expr Δ (Data.List.map (lift prf) Γ₁) (lift prf C₁)
+liftExpr p (Var x) = Var (liftVar p x)
+liftExpr p (Field e f) = Field {!!} {!!}
+liftExpr p (Invk e m mp) = {!!}
+liftExpr p (New C cp) = New (lift p C) {!!}
 
 {-# NON_TERMINATING #-}
 
@@ -148,8 +134,8 @@ eval Δ env (Field e f) with eval Δ env e -- RC-Field
 ... | VNew C cp = lookupMap cp f -- R-Field
 eval Δ env (Invk {m = md} e m mp) with eval Δ env e -- RC-Invk-Recv
 ... | VNew C cp with Data.List.All.map (eval Δ env) mp -- RC-Invk-Args
-... | mp' with (expr md)
-... | mb = eval Δ mp' (liftExpr mb) -- R-Invk
+... | mp' with liftExpr (WkClass.proof (Δ ∋ C)) (expr md)
+... | mb = eval Δ mp' mb -- R-Invk
 eval Δ env (New C cp) with Data.List.All.map (eval Δ env) cp -- RC-New-Arg
 ... | cp' = VNew C cp'
 
