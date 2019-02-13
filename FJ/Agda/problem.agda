@@ -129,7 +129,7 @@ liftParams p (px ∷ ps) = liftExpr p px ∷ liftParams p ps
 liftExpr p (Var x) = Var (liftVar p x)
 liftExpr p (Field e x) = {!!}
 liftExpr p (Invk e x x₁) = {!!}
-liftExpr p (New C cp) = New (lift p C) {!!}
+liftExpr p (New C cp) = New (lift p C) {!liftParams p cp!}
 
 -- Evaluation
 evalL : (Δ : CT) → ∀ {Γ es} → Env Δ Γ → All (Expr Δ Γ) es → All (Value Δ) es
@@ -144,6 +144,7 @@ eval Δ env (Var x) = lookup∈ env x
 eval Δ env (Field e f) with eval Δ env e -- RC-Field
 ... | VNew C cp = lookupMap cp f -- R-Field
 eval Δ env (Invk {m = md} e m mp) with eval Δ env e -- RC-Invk-Recv
-... | VNew C cp with (evalL Δ env mp)
-... | mp' = eval Δ mp' (liftExpr (WkClass.proof (Δ ∋ C)) (expr md))
+... | VNew C cp with (evalL Δ env mp) -- RC-Invk-Args
+... | mp' = eval Δ mp' (liftExpr (WkClass.proof (Δ ∋ C)) (expr md)) -- R-Invk
 eval Δ env (New C cp) = VNew C (evalL Δ env cp) 
+
