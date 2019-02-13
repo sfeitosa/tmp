@@ -147,4 +147,3 @@ eval Δ env (Invk {m = md} e m mp) with eval Δ env e -- RC-Invk-Recv
 ... | VNew C cp with (evalL Δ env mp)
 ... | mp' = eval Δ mp' (liftExpr (WkClass.proof (Δ ∋ C)) (expr md))
 eval Δ env (New C cp) = VNew C (evalL Δ env cp) 
-
