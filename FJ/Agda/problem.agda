@@ -93,13 +93,17 @@ data Expr (Δ : CT) (Γ : Ctx Δ) where
   New   : (C : Idx Δ) → All (Expr Δ Γ) (Data.List.map (lift (WkClass.proof (Δ ∋ C))) (fields (WkClass.def (Δ ∋ C))))
                       → Expr Δ Γ C
 
--- Evaluation 
+-- Definition of values
 
 data Value (Δ : CT) : Idx Δ → Set where
   VNew : (C : Idx Δ) → All (Value Δ) (Data.List.map (lift (WkClass.proof (Δ ∋ C))) (fields (WkClass.def (Δ ∋ C)))) → Value Δ C
 
+-- Definition of environments (call-by-value strategy)
+
 Env : (Δ : CT) → Ctx Δ → Set
 Env Δ Γ = All (Value Δ) Γ
+
+-- Auxiliary functions to evaluation
 
 lookup∈ : ∀ {A} {P : A → Set} {x xs} → All P xs → x ∈ xs → P x
 lookup∈ (p ∷ ps) zero = p
@@ -110,17 +114,37 @@ lookupMap : ∀ {Δ Δ₁} {t : Idx Δ₁} {ts : List (Idx Δ₁)} {fun : Idx Δ
 lookupMap (x ∷ _) zero = x
 lookupMap (_ ∷ xs) (suc i) = lookupMap xs i
 
+-- Liftting
+
+liftExpr : ∀ {Δ Δ₁} {Γ₁ : Ctx Δ₁} {τ₁ : Idx Δ₁} → (prf : Δ₁ ⊆ Δ) → Expr Δ₁ Γ₁ τ₁ → Expr Δ (Data.List.map (lift prf) Γ₁) (lift prf τ₁)
+
+liftVar : ∀ {Δ Δ₁ idx} {Γ₁ : Ctx Δ₁} → (prf : Δ₁ ⊆ Δ) → idx ∈ Γ₁ → lift prf idx ∈ Data.List.map (lift prf) Γ₁
+liftVar p zero = zero
+liftVar p (suc idx) = suc (liftVar p idx)
+
+liftParams : ∀ {Δ Δ₁ ps} {Γ₁ : Ctx Δ₁} → (prf : Δ₁ ⊆ Δ) → All (Expr Δ₁ Γ₁) ps → All (Expr Δ (Data.List.map (lift prf) Γ₁)) (Data.List.map (lift prf) ps)
+liftParams p [] = []
+liftParams p (px ∷ ps) = liftExpr p px ∷ liftParams p ps
+
+liftExpr p (Var x) = Var (liftVar p x)
+liftExpr p (Field e x) = {!!}
+liftExpr p (Invk e x x₁) = {!!}
+liftExpr p (New C cp) = New (lift p C) {!!}
+
+-- Evaluation
 evalL : (Δ : CT) → ∀ {Γ es} → Env Δ Γ → All (Expr Δ Γ) es → All (Value Δ) es
 eval : (Δ : CT) → ∀ {Γ C} → Env Δ Γ → Expr Δ Γ C → Value Δ C
 
 evalL Δ env [] = []
 evalL Δ env (e ∷ es) = eval Δ env e ∷ evalL Δ env es
 
+{-# NON_TERMINATING #-}
+
 eval Δ env (Var x) = lookup∈ env x 
 eval Δ env (Field e f) with eval Δ env e -- RC-Field
 ... | VNew C cp = lookupMap cp f -- R-Field
 eval Δ env (Invk {m = md} e m mp) with eval Δ env e -- RC-Invk-Recv
-... | VNew C cp = let mp' = (evalL Δ env mp)
-                    in eval Δ mp' {!!} --(liftExpr' (expr md))  <<<======= the problem is here, to convert the expr in Δ₁ to another in Δ
+... | VNew C cp with (evalL Δ env mp)
+... | mp' = eval Δ mp' (liftExpr (WkClass.proof (Δ ∋ C)) (expr md))
 eval Δ env (New C cp) = VNew C (evalL Δ env cp) 
 
