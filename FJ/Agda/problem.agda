@@ -122,14 +122,30 @@ liftVar : ∀ {Δ Δ₁ idx} {Γ₁ : Ctx Δ₁} → (prf : Δ₁ ⊆ Δ) → id
 liftVar p zero = zero
 liftVar p (suc idx) = suc (liftVar p idx)
 
+-- Not working
 liftParams : ∀ {Δ Δ₁ ps} {Γ₁ : Ctx Δ₁} → (prf : Δ₁ ⊆ Δ) → All (Expr Δ₁ Γ₁) ps → All (Expr Δ (Data.List.map (lift prf) Γ₁)) (Data.List.map (lift prf) ps)
 liftParams p [] = []
 liftParams p (px ∷ ps) = liftExpr p px ∷ liftParams p ps
 
+coerceType : ∀ {Δ Γ τ σ} → Expr Δ Γ τ → τ ≡ σ → Expr Δ Γ σ
+coerceType = {!!}
+
+liftParams' : ∀ {Δ₁'} {τ₁' : Idx Δ₁'} {Δ'} {Γ₁' : List (Idx Δ₁')}
+                {p : Δ₁' ⊆ Δ'} →
+              WkClass.Δ₁ (Δ₁' ∋ τ₁') ⊆ Δ' →
+              All (Expr Δ₁' Γ₁')
+              (Data.List.map (lift (WkClass.proof (Δ₁' ∋ τ₁')))
+               (fields (WkClass.def (Δ₁' ∋ τ₁')))) →
+              All (Expr Δ' (Data.List.map (lift p) Γ₁'))
+              (Data.List.map (lift (WkClass.proof (Δ' ∋ lift p τ₁')))
+               (fields (WkClass.def (Δ' ∋ lift p τ₁'))))
+liftParams' p es = {!!}
+
+--liftExpr : ∀ {Δ Δ₁} {Γ₁ : Ctx Δ₁} {τ₁ : Idx Δ₁} → (prf : Δ₁ ⊆ Δ) → Expr Δ₁ Γ₁ τ₁ → Expr Δ (Data.List.map (lift prf) Γ₁) (lift prf τ₁)
 liftExpr p (Var x) = Var (liftVar p x)
-liftExpr p (Field e x) = {!!}
-liftExpr p (Invk e x x₁) = {!!}
-liftExpr p (New C cp) = New (lift p C) {!liftParams p cp!}
+liftExpr {Δ'} {Δ₁'} {Γ₁'} {τ₁'} p (Field {idx'} {f = f'} e f) = Field {Δ'} {Data.List.map (lift p) Γ₁'} {lift {!⊆-trans (WkClass.proof (Δ₁' ∋ idx')) p!} f'} {f'} {!!} {!!}
+liftExpr {Δ'} {Δ₁'} {Γ₁'} {τ₁'} p (Invk {idx'} e m mp) = Invk {Δ'} {Data.List.map (lift p) Γ₁'} {{!!}} {{!!}} {!!} {!!} (liftParams' ((⊆-trans (WkClass.proof (Δ₁' ∋ τ₁')) p)) mp)
+liftExpr {Δ'} {Δ₁'} {Γ₁'} {τ₁'} p (New C cp) = New {Δ'} {Data.List.map (lift p) Γ₁'} (lift p C) (liftParams' (⊆-trans (WkClass.proof (Δ₁' ∋ τ₁')) p) cp)
 
 -- Evaluation
 evalL : (Δ : CT) → ∀ {Γ es} → Env Δ Γ → All (Expr Δ Γ) es → All (Value Δ) es
