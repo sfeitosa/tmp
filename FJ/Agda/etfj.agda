@@ -5,10 +5,9 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Data.List using (List; _∷_; []; zip; unzip; _++_)
 open import Data.List.All using (All; _∷_; [])
 open import Data.Product using (_×_; _,_; proj₁; proj₂; ∃)
---open import Data.Empty using (⊥-elim)
-open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl)
---open import Data.List.Membership.Setoid using (_∈_)
+open import Data.Empty using (⊥-elim)
+open import Relation.Nullary using (yes; no; ¬_)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; cong)
 
 -- Expression syntax
 
@@ -63,6 +62,11 @@ subs-list (e ∷ el) l = subs e l ∷ subs-list el l
 CT : Set
 CT = List (ℕ × Class)
 
+postulate
+  ct  : CT
+  ths : ℕ
+  Obj : ℕ
+
 data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
   here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
   there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
@@ -71,19 +75,22 @@ data _∈_ : ℕ → List ℕ → Set where
   here  : ∀ {x xs} → x ∈ (x ∷ xs)
   there : ∀ {x y xs} → x ∈ xs → x ∈ (y ∷ xs)
 
+_∉_ : ℕ → List ℕ → Set
+x ∉ xs = ¬ (x ∈ xs)
+
+{-
+¬_∋_∶_ : {A : Set} → List (ℕ × A) → ℕ → A → Set
+¬_∋_∶_ Δ x c = ¬ (Δ ∋ x ∶ c)
+-}
+
 data env-zip {A : Set} {B : Set} : List (ℕ × A) → List B → List (ℕ × B) → Set where
   here  : env-zip [] [] [] 
   there : ∀ {x a b aenv bs benv}
        → env-zip aenv bs benv
        → env-zip ((x , a) ∷ aenv) (b ∷ bs) ((x , b) ∷ benv)
 
-variable
-  ths    : ℕ
-  Object : ℕ
-  ct     : CT
-
 data fields : ℕ → List (ℕ × ℕ) → Set where
-  obj   : fields Object []
+  obj   : fields Obj []
   other : ∀ {C CD}
        → ct ∋ C ∶ CD
        → fields C (Class.flds CD)
@@ -112,7 +119,7 @@ data _⟶_ where
              → e ⟶ e'
              → Field e f ⟶ Field e' f
   R-Invk      : ∀ {C cp m MD ap ep}
-             → method C m MD -- (r , fp , e₀)
+             → method C m MD
              → env-zip (Method.params MD) ap ep
              → Invk (New C cp) m ap ⟶ subs (Method.body MD) ep
 --             → Invk (New C cp) m ap ⟶ subs e₀ ((ths , (New C cp)) ∷ ep)
@@ -176,20 +183,38 @@ data Val : Expr → Set where
 
 -- Properties
 
--- Auxiliary lemmas for Progress
+-- Auxiliary lemmas for Progress and Preservation
 
-postulate 
-  eqFields : ∀ {c fs fs'} → fields c fs → fields c fs' → fs ≡ fs'
-
-postulate 
-  ⊧-zip : ∀ {Δ₁ Δ₂ vl} → Δ₁ ⊧ vl ∶ (proj₂ (unzip Δ₂)) → (∃ λ zp → env-zip Δ₂ vl zp)
+-- We assume that a class table don't have a class with name Obj
 
 postulate
-  ∋-zip : ∀ {E0 E ds Eds v t}
-       → E0 ⊧ ds ∶ (proj₂ (unzip E))
-       → env-zip E ds Eds
-       → E ∋ v ∶ t
-       → (∃ λ e → Eds ∋ v ∶ e)
+  Obj-∉-CT : ∀ {Δ} → Obj ∉ Δ
+
+∋-In : ∀ {A Δ x} {τ : A} → Δ ∋ x ∶ τ → x ∈ (proj₁ (unzip Δ))
+∋-In here = here
+∋-In (there xi) = there (∋-In xi)
+
+∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
+∋-Eq {Δ = (v , τ) ∷ Δ} {.v} here here = refl
+∋-Eq {Δ = (v , τ) ∷ Δ} {.v} here (there hib) = {!!} -- How to prove this?
+∋-Eq {Δ = (v , τ) ∷ Δ} {.v} (there hia) here = {!!} 
+∋-Eq {Δ = (v , τ) ∷ Δ} {x} (there hia) (there hib) rewrite ∋-Eq hia hib = refl
+
+eqFields : ∀ {c fs fs'} → fields c fs → fields c fs' → fs ≡ fs'
+eqFields obj obj = refl
+eqFields obj (other c) with ∋-In c
+... | obi = ⊥-elim (Obj-∉-CT obi)
+eqFields (other c) obj with ∋-In c
+... | obi = ⊥-elim (Obj-∉-CT obi)
+eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
+
+⊧-zip : ∀ {Δ₁ Δ₂ vl} → Δ₁ ⊧ vl ∶ (proj₂ (unzip Δ₂)) → (∃ λ zp → env-zip Δ₂ vl zp)
+⊧-zip {Δ₂ = []} {[]} tl = [] , here
+⊧-zip {Δ₁} {Δ₂ = (n , t) ∷ xl} {e ∷ vl} (there x tl) = (n , e) ∷ proj₁ (⊧-zip {Δ₁} {xl} tl) , there (proj₂ (⊧-zip tl))
+
+∋-zip : ∀ {E0 E ds Eds v t} → E0 ⊧ ds ∶ (proj₂ (unzip E)) → env-zip E ds Eds → E ∋ v ∶ t → (∃ λ e → Eds ∋ v ∶ e)
+∋-zip {E0} {.(v , t) ∷ E} {x₁ ∷ ds} {.(v , x₁) ∷ Eds} {v} {t} tl (there ez) here = x₁ , here
+∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
 
 -- Progress
 
@@ -236,32 +261,29 @@ progress-list (there tp tpl) with progress tp
 -- Auxiliary lemmas for Preservation
 
 postulate
-  ∋-In : ∀ {Δ x} {τ : ℕ} → Δ ∋ x ∶ τ → x ∈ (proj₁ (unzip Δ))
+  ⊢-Method : ∀ {Γ C m MD} → method C m MD → Γ ⊢ (Method.body MD) ∶ (Method.ret MD)
 
-postulate
-  ∋-Eq : ∀ {Δ x} {a b : Expr} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
-
-postulate
-  ⊢-Method : ∀ {Γ C m MD} → method C m MD
-                          → Γ ⊢ (Method.body MD) ∶ (Method.ret MD)
-
-postulate
-  eqMethod : ∀ {c m md md'} → method c m md → method c m md' → md ≡ md'
+eqMethod : ∀ {c m md md'} → method c m md → method c m md' → md ≡ md'
+eqMethod (this cd₁ md₁) (this cd₂ md₂) rewrite ∋-Eq cd₁ cd₂ | ∋-Eq md₁ md₂ = refl
 
 -- Substitution
 
-postulate
-  subst : ∀ {Γ Γ₁ e pe C el} → Γ₁ ⊢ e ∶ C
-                             → Γ ⊧ el ∶ proj₂ (unzip Γ₁)
-                             → env-zip Γ₁ el pe
-                             → Γ ⊢ (subs e pe) ∶ C
+postulate 
+  subst-var : ∀ {Γ Γ₁ x el pe C} → Γ ∋ x ∶ C → Γ₁ ⊧ el ∶ proj₂ (unzip Γ) → env-zip Γ el pe → Γ₁ ⊢ subs (Var x) pe ∶ C
+
+subst : ∀ {Γ Γ₁ e pe C el} → Γ₁ ⊢ e ∶ C → Γ ⊧ el ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ el pe → Γ ⊢ (subs e pe) ∶ C
+subst-list : ∀ {Γ Γ₁ el pe Cl nl} → Γ₁ ⊧ el ∶ Cl → Γ ⊧ nl ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ nl pe → Γ ⊧ (subs-list el pe) ∶ Cl
+
+subst (T-Var x) pt zp = subst-var x pt zp
+subst (T-Field e flds f) pt zp = T-Field (subst e pt zp) flds f
+subst (T-Invk e m mp) pt zp = T-Invk (subst e pt zp) m (subst-list mp pt zp)
+subst (T-New flds cp) pt zp = T-New flds (subst-list cp pt zp)
+
+subst-list here pt zp = here
+subst-list (there t tl) pt zp = there (subst t pt zp) (subst-list tl pt zp)
 
 postulate
-  helper : ∀ {Δ Γ f e τ l w}
-        → Δ ∋ f ∶ e
-        → w ∋ f ∶ τ
-        → env-zip w l Δ 
-        → Γ ⊢ e ∶ τ
+  helper : ∀ {Δ Γ f e τ l w} → Δ ∋ f ∶ e → w ∋ f ∶ τ → env-zip w l Δ → Γ ⊢ e ∶ τ
                    
 
 -- Preservation proof
