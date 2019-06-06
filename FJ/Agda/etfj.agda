@@ -36,6 +36,47 @@ record Class : Set where
     -- List of method names with its ret, params, and body
     meths : List (ℕ × Method) --(ℕ × (ℕ × List (ℕ × ℕ) × Expr))
 
+-- Class table: name × class
+
+CT : Set
+CT = List (ℕ × Class)
+
+-- We assume a CT, a variable representing 'this', and a class name representing 'Object'.
+
+postulate
+  ct  : CT
+  ths : ℕ
+  Obj : ℕ
+
+data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
+  here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
+  there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
+
+data _∈_ {A : Set} : A → List A → Set where
+  here  : ∀ {x xs} → x ∈ (x ∷ xs)
+  there : ∀ {x y xs} → x ∈ xs → x ∈ (y ∷ xs)
+
+_∉_ : ℕ → List ℕ → Set
+x ∉ xs = ¬ (x ∈ xs)
+
+data env-zip {A : Set} {B : Set} : List (ℕ × A) → List B → List (ℕ × B) → Set where
+  here  : env-zip [] [] [] 
+  there : ∀ {x a b aenv bs benv}
+       → env-zip aenv bs benv
+       → env-zip ((x , a) ∷ aenv) (b ∷ bs) ((x , b) ∷ benv)
+
+data fields : ℕ → List (ℕ × ℕ) → Set where
+  obj   : fields Obj []
+  other : ∀ {C CD}
+       → ct ∋ C ∶ CD
+       → fields C (Class.flds CD)
+
+data method : ℕ → ℕ → Method → Set where
+  this : ∀ {C CD m mdecl}
+      → ct ∋ C ∶ CD
+      → (Class.meths CD) ∋ m ∶ mdecl
+      → method C m mdecl 
+
 -- Substitution
 
 get : {A : Set} → ℕ → List (ℕ × A) → Maybe A
@@ -56,50 +97,6 @@ subs (New c cp) l = New c (subs-list cp l)
 
 subs-list [] l = []
 subs-list (e ∷ el) l = subs e l ∷ subs-list el l
-
--- Class table: name × class
-
-CT : Set
-CT = List (ℕ × Class)
-
-postulate
-  ct  : CT
-  ths : ℕ
-  Obj : ℕ
-
-data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
-  here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
-  there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
-
-data _∈_ : ℕ → List ℕ → Set where
-  here  : ∀ {x xs} → x ∈ (x ∷ xs)
-  there : ∀ {x y xs} → x ∈ xs → x ∈ (y ∷ xs)
-
-_∉_ : ℕ → List ℕ → Set
-x ∉ xs = ¬ (x ∈ xs)
-
-{-
-¬_∋_∶_ : {A : Set} → List (ℕ × A) → ℕ → A → Set
-¬_∋_∶_ Δ x c = ¬ (Δ ∋ x ∶ c)
--}
-
-data env-zip {A : Set} {B : Set} : List (ℕ × A) → List B → List (ℕ × B) → Set where
-  here  : env-zip [] [] [] 
-  there : ∀ {x a b aenv bs benv}
-       → env-zip aenv bs benv
-       → env-zip ((x , a) ∷ aenv) (b ∷ bs) ((x , b) ∷ benv)
-
-data fields : ℕ → List (ℕ × ℕ) → Set where
-  obj   : fields Obj []
-  other : ∀ {C CD}
-       → ct ∋ C ∶ CD
-       → fields C (Class.flds CD)
-
-data method : ℕ → ℕ → Method → Set where
-  this : ∀ {C CD m mdecl}
-      → ct ∋ C ∶ CD
-      → (Class.meths CD) ∋ m ∶ mdecl
-      → method C m mdecl 
 
 -- Small step relation
 
@@ -176,6 +173,25 @@ data _⊧_∶_ where
        → Γ ⊧ l ∶ Cl
        → Γ ⊧ e ∷ l ∶ C ∷ Cl
 
+-- Method typing
+
+data MethodOk : Class → Method → Set where
+  T-Method : ∀ {CD MD e₀}
+          → Method.params MD ⊢ e₀ ∶ Method.ret MD
+          → MethodOk CD MD
+
+-- Class typing
+
+data ClassOk : Class → Set where
+  T-Class : ∀ {CD}
+         → All (MethodOk CD) (proj₂ (unzip (Class.meths CD)))
+         → ClassOk CD
+
+-- Class table typing
+
+CTOk : CT → Set
+CTOk ct = All (λ ci → ClassOk (proj₂ ci)) ct
+
 -- Values
 
 data Val : Expr → Set where
@@ -186,19 +202,21 @@ data Val : Expr → Set where
 -- Auxiliary lemmas for Progress and Preservation
 
 -- We assume that a class table don't have a class with name Obj
+-- We assume that the class table 'ct' is well-formed
 
 postulate
   Obj-∉-CT : ∀ {Δ} → Obj ∉ Δ
+  WellFormedCT : CTOk ct
+
+-- We assume that a context is a set (i.e. there are no duplicate elements)
+
+postulate 
+  ∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
+  ∋-NonDup : ∀ {A Δ} {x a b : A} → (x , a) ∈ Δ → (x , b) ∈ Δ → a ≡ b
 
 ∋-In : ∀ {A Δ x} {τ : A} → Δ ∋ x ∶ τ → x ∈ (proj₁ (unzip Δ))
 ∋-In here = here
 ∋-In (there xi) = there (∋-In xi)
-
-∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
-∋-Eq {Δ = (v , τ) ∷ Δ} {.v} here here = refl
-∋-Eq {Δ = (v , τ) ∷ Δ} {.v} here (there hib) = {!!} -- How to prove this?
-∋-Eq {Δ = (v , τ) ∷ Δ} {.v} (there hia) here = {!!} 
-∋-Eq {Δ = (v , τ) ∷ Δ} {x} (there hia) (there hib) rewrite ∋-Eq hia hib = refl
 
 eqFields : ∀ {c fs fs'} → fields c fs → fields c fs' → fs ≡ fs'
 eqFields obj obj = refl
@@ -215,6 +233,13 @@ eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
 ∋-zip : ∀ {E0 E ds Eds v t} → E0 ⊧ ds ∶ (proj₂ (unzip E)) → env-zip E ds Eds → E ∋ v ∶ t → (∃ λ e → Eds ∋ v ∶ e)
 ∋-zip {E0} {.(v , t) ∷ E} {x₁ ∷ ds} {.(v , x₁) ∷ Eds} {v} {t} tl (there ez) here = x₁ , here
 ∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
+
+domEq : ∀ {A B l} {Δ₁ : List (ℕ × A)} {Δ₂ : List (ℕ × B)} → env-zip Δ₁ l Δ₂ → proj₁ (unzip Δ₁) ≡ proj₁ (unzip Δ₂)
+domEq here = refl
+domEq (there zp) rewrite domEq zp = refl
+
+⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
+⊢-zip {.(_ , _) ∷ Δ₁} {.(_ , x₂) ∷ Δ₂} {x₂ ∷ el} (there zp) (there x₁ tpl) be bt = {!!}
 
 -- Progress
 
@@ -260,16 +285,16 @@ progress-list (there tp tpl) with progress tp
 
 -- Auxiliary lemmas for Preservation
 
-postulate
-  ⊢-Method : ∀ {Γ C m MD} → method C m MD → Γ ⊢ (Method.body MD) ∶ (Method.ret MD)
+⊢-Method : ∀ {Γ C m MD} → method C m MD → Γ ⊢ (Method.body MD) ∶ (Method.ret MD)
+⊢-Method (this cd md) = {!!}
 
 eqMethod : ∀ {c m md md'} → method c m md → method c m md' → md ≡ md'
 eqMethod (this cd₁ md₁) (this cd₂ md₂) rewrite ∋-Eq cd₁ cd₂ | ∋-Eq md₁ md₂ = refl
 
 -- Substitution
 
-postulate 
-  subst-var : ∀ {Γ Γ₁ x el pe C} → Γ ∋ x ∶ C → Γ₁ ⊧ el ∶ proj₂ (unzip Γ) → env-zip Γ el pe → Γ₁ ⊢ subs (Var x) pe ∶ C
+subst-var : ∀ {Γ Γ₁ x el pe C} → Γ ∋ x ∶ C → Γ₁ ⊧ el ∶ proj₂ (unzip Γ) → env-zip Γ el pe → Γ₁ ⊢ subs (Var x) pe ∶ C
+subst-var ni tpl zp = {!!}
 
 subst : ∀ {Γ Γ₁ e pe C el} → Γ₁ ⊢ e ∶ C → Γ ⊧ el ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ el pe → Γ ⊢ (subs e pe) ∶ C
 subst-list : ∀ {Γ Γ₁ el pe Cl nl} → Γ₁ ⊧ el ∶ Cl → Γ ⊧ nl ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ nl pe → Γ ⊧ (subs-list el pe) ∶ Cl
@@ -281,11 +306,7 @@ subst (T-New flds cp) pt zp = T-New flds (subst-list cp pt zp)
 
 subst-list here pt zp = here
 subst-list (there t tl) pt zp = there (subst t pt zp) (subst-list tl pt zp)
-
-postulate
-  helper : ∀ {Δ Γ f e τ l w} → Δ ∋ f ∶ e → w ∋ f ∶ τ → env-zip w l Δ → Γ ⊢ e ∶ τ
                    
-
 -- Preservation proof
 
 preservation : ∀ {Γ e e' τ} → Γ ⊢ e ∶ τ → e ⟶ e' → Γ ⊢ e' ∶ τ
@@ -293,7 +314,7 @@ preservation-list : ∀ {Γ el el' τl} → Γ ⊧ el ∶ τl → el ↦ el' →
 
 preservation (T-Var x) () -- Not necessary anymore
 preservation (T-Field tp fls bnd) (RC-Field ev) = T-Field (preservation tp ev) fls bnd
-preservation (T-Field (T-New x x₁) fls bnd) (R-Field flds zp bnde) rewrite eqFields fls flds | eqFields flds x | ∋-Eq (proj₂ (∋-zip x₁ zp bnd)) bnde = helper bnde bnd zp -- See if it will it be provable
+preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
 preservation (T-Invk tp tmt tpl) (RC-InvkRecv ev) = T-Invk (preservation tp ev) tmt tpl
 preservation (T-Invk tp tmt tpl) (RC-InvkArg evl) = T-Invk tp tmt (preservation-list tpl evl)
 preservation (T-Invk (T-New x x₁) tmt tpl) (R-Invk rmt zp) rewrite eqMethod rmt tmt = subst (⊢-Method tmt) tpl zp
