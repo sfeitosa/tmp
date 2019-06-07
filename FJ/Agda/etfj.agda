@@ -22,6 +22,7 @@ data Expr : Set where
 record Method : Set where
   field
     ret    : ℕ
+    -- List of formal parameters (name × type)
     params : List (ℕ × ℕ)
     body   : Expr
     
@@ -31,12 +32,12 @@ record Class : Set where
   field
     name  : ℕ
     ext   : ℕ
-    -- List of field names and types
+    -- List of fields (name × type)
     flds  : List (ℕ × ℕ)
-    -- List of method names with its ret, params, and body
-    meths : List (ℕ × Method) --(ℕ × (ℕ × List (ℕ × ℕ) × Expr))
+    -- List of methods (name × Method)
+    meths : List (ℕ × Method)
 
--- Class table: name × class
+-- Class table: List of classes (name × class)
 
 CT : Set
 CT = List (ℕ × Class)
@@ -176,8 +177,8 @@ data _⊧_∶_ where
 -- Method typing
 
 data MethodOk : Class → Method → Set where
-  T-Method : ∀ {CD MD e₀}
-          → Method.params MD ⊢ e₀ ∶ Method.ret MD
+  T-Method : ∀ {CD MD}
+          → Method.params MD ⊢ Method.body MD ∶ Method.ret MD
           → MethodOk CD MD
 
 -- Class typing
@@ -201,7 +202,7 @@ data Val : Expr → Set where
 
 -- Auxiliary lemmas for Progress and Preservation
 
--- We assume that a class table don't have a class with name Obj
+-- We assume that a class table doesn't have a class with name Obj
 -- We assume that the class table 'ct' is well-formed
 
 postulate
@@ -213,6 +214,12 @@ postulate
 postulate 
   ∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
   ∋-NonDup : ∀ {A Δ} {x a b : A} → (x , a) ∈ Δ → (x , b) ∈ Δ → a ≡ b
+
+-- Still to prove
+
+postulate 
+  ok-class-meth : ∀ {CD MD m} → ClassOk CD → Class.meths CD ∋ m ∶ MD → MethodOk CD MD
+  ok-ctable-class : ∀ {Δ CD c} → CTOk Δ → Δ ∋ c ∶ CD → ClassOk CD
 
 ∋-In : ∀ {A Δ x} {τ : A} → Δ ∋ x ∶ τ → x ∈ (proj₁ (unzip Δ))
 ∋-In here = here
@@ -239,7 +246,9 @@ domEq here = refl
 domEq (there zp) rewrite domEq zp = refl
 
 ⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
-⊢-zip {.(_ , _) ∷ Δ₁} {.(_ , x₂) ∷ Δ₂} {x₂ ∷ el} (there zp) (there x₁ tpl) be bt = {!!}
+⊢-zip zp tpl bt be with  ∋-zip tpl zp bt
+⊢-zip (there zp) (there x₁ tpl) bt be | e , be' = {!!}
+--⊢-zip {.(_ , _) ∷ Δ₁} {.(_ , x₂) ∷ Δ₂} {x₂ ∷ el} (there zp) (there x₁ tpl) bt be = {!!}
 
 -- Progress
 
@@ -285,8 +294,9 @@ progress-list (there tp tpl) with progress tp
 
 -- Auxiliary lemmas for Preservation
 
-⊢-Method : ∀ {Γ C m MD} → method C m MD → Γ ⊢ (Method.body MD) ∶ (Method.ret MD)
-⊢-Method (this cd md) = {!!}
+⊢-Method : ∀ {C m MD} → method C m MD → Method.params MD ⊢ Method.body MD ∶ Method.ret MD
+⊢-Method (this {_} {CD} cd md) with ok-class-meth (ok-ctable-class WellFormedCT cd) md
+... | T-Method tm = tm
 
 eqMethod : ∀ {c m md md'} → method c m md → method c m md' → md ≡ md'
 eqMethod (this cd₁ md₁) (this cd₂ md₂) rewrite ∋-Eq cd₁ cd₂ | ∋-Eq md₁ md₂ = refl
