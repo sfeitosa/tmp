@@ -241,13 +241,19 @@ eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
 ∋-zip {E0} {.(v , t) ∷ E} {x₁ ∷ ds} {.(v , x₁) ∷ Eds} {v} {t} tl (there ez) here = x₁ , here
 ∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
 
+{-
 domEq : ∀ {A B l} {Δ₁ : List (ℕ × A)} {Δ₂ : List (ℕ × B)} → env-zip Δ₁ l Δ₂ → proj₁ (unzip Δ₁) ≡ proj₁ (unzip Δ₂)
 domEq here = refl
 domEq (there zp) rewrite domEq zp = refl
 
-⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
-⊢-zip zp tpl bt be with  ∋-zip tpl zp bt
-⊢-zip (there zp) (there x₁ tpl) bt be | e , be' = {!!}
+⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁)
+     → zip (proj₁ (unzip Δ₁)) (proj₂ (unzip Δ₁)) ∋ f ∶ τ
+     → zip (proj₁ (unzip Δ₂)) (proj₂ (unzip Δ₂)) ∋ f ∶ e → Γ ⊢ e ∶ τ
+⊢-zip = {!!}
+-}
+
+--⊢-zip zp tpl bt be with  ∋-zip tpl zp bt
+--⊢-zip (there zp) (there x₁ tpl) bt be | e , be' = {!!}
 --⊢-zip {.(_ , _) ∷ Δ₁} {.(_ , x₂) ∷ Δ₂} {x₂ ∷ el} (there zp) (there x₁ tpl) bt be = {!!}
 
 -- Progress
@@ -324,7 +330,9 @@ preservation-list : ∀ {Γ el el' τl} → Γ ⊧ el ∶ τl → el ↦ el' →
 
 preservation (T-Var x) () -- Not necessary anymore
 preservation (T-Field tp fls bnd) (RC-Field ev) = T-Field (preservation tp ev) fls bnd
-preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
+preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with ∋-zip tps zp bnd
+... | e , be rewrite ∋-Eq bnde be = {!!}
+--preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
 preservation (T-Invk tp tmt tpl) (RC-InvkRecv ev) = T-Invk (preservation tp ev) tmt tpl
 preservation (T-Invk tp tmt tpl) (RC-InvkArg evl) = T-Invk tp tmt (preservation-list tpl evl)
 preservation (T-Invk (T-New x x₁) tmt tpl) (R-Invk rmt zp) rewrite eqMethod rmt tmt = subst (⊢-Method tmt) tpl zp
