@@ -330,8 +330,13 @@ preservation-list : ∀ {Γ el el' τl} → Γ ⊧ el ∶ τl → el ↦ el' →
 
 preservation (T-Var x) () -- Not necessary anymore
 preservation (T-Field tp fls bnd) (RC-Field ev) = T-Field (preservation tp ev) fls bnd
-preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with ∋-zip tps zp bnd
-... | e , be rewrite ∋-Eq bnde be = {!!}
+preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ (there zp) bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with tps
+... | there tp tpl with ∋-zip tps (there zp) bnd
+...   | e , be rewrite ∋-Eq bnde be with be
+...     | here = {!!}
+...     | there x = {!!}
+--preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with ∋-zip tps zp bnd
+--... | e , be = {!!} -- rewrite ∋-Eq bnde be = {!!}
 --preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
 preservation (T-Invk tp tmt tpl) (RC-InvkRecv ev) = T-Invk (preservation tp ev) tmt tpl
 preservation (T-Invk tp tmt tpl) (RC-InvkArg evl) = T-Invk tp tmt (preservation-list tpl evl)
