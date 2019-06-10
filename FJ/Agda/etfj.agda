@@ -242,7 +242,7 @@ eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
 ∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
 
 ⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
-⊢-zip {.((_ , _) ∷ _)} {.((_ , _) ∷ _)} {.(_ ∷ _)} {Γ} {f} {e} {τ} (there {x} zp) (there t env) ht he with f ≟ x
+⊢-zip {f = f} (there {x} zp) (there t env) ht he with f ≟ x
 ... | yes refl rewrite ∋-First he | ∋-First ht = t
 ... | no ¬p = ⊢-zip zp env (∋-ElimNEq ¬p ht) (∋-ElimNEq ¬p he)
 
