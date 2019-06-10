@@ -49,14 +49,6 @@ postulate
   ths : ℕ
   Obj : ℕ
 
-{-
-get : {A : Set} → ℕ → List (ℕ × A) → Maybe A
-get x [] = nothing
-get x ((y , v) ∷ l) with x ≟ y
-... | yes refl = just v
-... | no _ = get x l
--}
-
 data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
   here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
   there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
@@ -224,9 +216,6 @@ postulate
   ∋-Nil : ∀ {A x} {a : A} → ¬ ([] ∋ x ∶ a)
   ∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
   ∋-ElimNEq : ∀ {A Δ x y} {a b : A} → x ≢ y → ((y , b) ∷ Δ) ∋ x ∶ a → Δ ∋ x ∶ a
-  
-  
-  
 
 -- Still to prove
 
@@ -255,10 +244,9 @@ eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
 ∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
 
 ⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
-⊢-zip (there zp) (there t tpl) here here = t
-⊢-zip (there zp) (there t tpl) here (there he) = ⊥-elim {!!} -- Impossible case: how to prove it?
-⊢-zip (there zp) (there t tpl) (there ht) here = ⊥-elim {!!} -- Impossible case: how to prove it?
-⊢-zip (there zp) (there t tpl) (there ht) (there he) = ⊢-zip zp tpl ht he
+⊢-zip {.((_ , _) ∷ _)} {.((_ , _) ∷ _)} {.(_ ∷ _)} {Γ} {f} {e} {τ} (there {x} zp) (there t env) ht he with f ≟ x
+... | yes refl rewrite ∋-First he | ∋-First ht = t
+... | no ¬p = ⊢-zip zp env (∋-ElimNEq ¬p ht) (∋-ElimNEq ¬p he)
 
 -- Progress
 
@@ -337,15 +325,7 @@ preservation-list : ∀ {Γ el el' τl} → Γ ⊧ el ∶ τl → el ↦ el' →
 
 preservation (T-Var x) () -- Not necessary anymore
 preservation (T-Field tp fls bnd) (RC-Field ev) = T-Field (preservation tp ev) fls bnd
--- Attempt 1: using an extra lemma
 preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
--- Attempt 2: inline proving
-{-
-preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with zp , tps
-... | there zp' , there t tps' with ∋-zip tps zp bnd
-...   | e , here rewrite ∋-Eq bnde here | ∋-First bnd = t
-...   | e , there be rewrite ∋-Eq bnde (there be) = {!!} -- Recursive case: how to prove it?
--}
 preservation (T-Invk tp tmt tpl) (RC-InvkRecv ev) = T-Invk (preservation tp ev) tmt tpl
 preservation (T-Invk tp tmt tpl) (RC-InvkArg evl) = T-Invk tp tmt (preservation-list tpl evl)
 preservation (T-Invk (T-New x x₁) tmt tpl) (R-Invk rmt zp) rewrite eqMethod rmt tmt = subst (⊢-Method tmt) tpl zp
