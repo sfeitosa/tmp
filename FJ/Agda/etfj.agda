@@ -49,9 +49,19 @@ postulate
   ths : ℕ
   Obj : ℕ
 
+{-
+get : {A : Set} → ℕ → List (ℕ × A) → Maybe A
+get x [] = nothing
+get x ((y , v) ∷ l) with x ≟ y
+... | yes refl = just v
+... | no _ = get x l
+-}
+
 data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
   here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
   there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
+
+--_∋_∶_ : {A : Set} → List (ℕ × A) → ℕ → A → Set
 
 data _∈_ {A : Set} : A → List A → Set where
   here  : ∀ {x xs} → x ∈ (x ∷ xs)
@@ -80,18 +90,13 @@ data method : ℕ → ℕ → Method → Set where
 
 -- Substitution
 
-get : {A : Set} → ℕ → List (ℕ × A) → Maybe A
-get x [] = nothing
-get x ((y , v) ∷ l) with x ≟ y
-... | yes refl = just v
-... | no _ = get x l
-
 subs : Expr → List (ℕ × Expr) → Expr
 subs-list : List Expr → List (ℕ × Expr) → List Expr
 
-subs (Var x) l with get x l
-... | just e = e
-... | nothing = Var x
+subs (Var x) [] = Var x
+subs (Var x) ((y , e) ∷ l) with x ≟ y
+... | yes refl = e
+... | no _ = subs (Var x) l
 subs (Field e f) l = Field (subs e l) f
 subs (Invk e m mp) l = Invk (subs e l) m (subs-list mp l)
 subs (New c cp) l = New c (subs-list cp l)
@@ -211,9 +216,17 @@ postulate
 
 -- We assume that a context is a set (i.e. there are no duplicate elements)
 
-postulate 
+-- Still to prove
+
+postulate
+  ∋-First : ∀ {A Δ x τ} {a : A} → ((x , a) ∷ Δ) ∋ x ∶ τ → a ≡ τ
+  ∋-Other : ∀ {A Δ x y} {a b : A} → Δ ∋ y ∶ b → x ≢ y → ((x , a) ∷ Δ) ∋ y ∶ b
+  ∋-Nil : ∀ {A x} {a : A} → ¬ ([] ∋ x ∶ a)
   ∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
-  ∋-NonDup : ∀ {A Δ} {x a b : A} → (x , a) ∈ Δ → (x , b) ∈ Δ → a ≡ b
+  ∋-ElimNEq : ∀ {A Δ x y} {a b : A} → x ≢ y → ((y , b) ∷ Δ) ∋ x ∶ a → Δ ∋ x ∶ a
+  
+  
+  
 
 -- Still to prove
 
@@ -241,20 +254,11 @@ eqFields (other c₁) (other c₂) rewrite ∋-Eq c₁ c₂ = refl
 ∋-zip {E0} {.(v , t) ∷ E} {x₁ ∷ ds} {.(v , x₁) ∷ Eds} {v} {t} tl (there ez) here = x₁ , here
 ∋-zip {E0} {.(_ , _) ∷ E} {x₁ ∷ ds} {.(_ , x₁) ∷ Eds} {v} {t} (there x₂ tl) (there ez) (there ni) = proj₁ (∋-zip tl ez ni) , there (proj₂ (∋-zip tl ez ni))
 
-{-
-domEq : ∀ {A B l} {Δ₁ : List (ℕ × A)} {Δ₂ : List (ℕ × B)} → env-zip Δ₁ l Δ₂ → proj₁ (unzip Δ₁) ≡ proj₁ (unzip Δ₂)
-domEq here = refl
-domEq (there zp) rewrite domEq zp = refl
-
-⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁)
-     → zip (proj₁ (unzip Δ₁)) (proj₂ (unzip Δ₁)) ∋ f ∶ τ
-     → zip (proj₁ (unzip Δ₂)) (proj₂ (unzip Δ₂)) ∋ f ∶ e → Γ ⊢ e ∶ τ
-⊢-zip = {!!}
--}
-
---⊢-zip zp tpl bt be with  ∋-zip tpl zp bt
---⊢-zip (there zp) (there x₁ tpl) bt be | e , be' = {!!}
---⊢-zip {.(_ , _) ∷ Δ₁} {.(_ , x₂) ∷ Δ₂} {x₂ ∷ el} (there zp) (there x₁ tpl) bt be = {!!}
+⊢-zip : ∀ {Δ₁ Δ₂ el Γ f e τ} → env-zip Δ₁ el Δ₂ → Γ ⊧ el ∶ proj₂ (unzip Δ₁) → Δ₁ ∋ f ∶ τ → Δ₂ ∋ f ∶ e → Γ ⊢ e ∶ τ
+⊢-zip (there zp) (there t tpl) here here = t
+⊢-zip (there zp) (there t tpl) here (there he) = ⊥-elim {!!} -- Impossible case: how to prove it?
+⊢-zip (there zp) (there t tpl) (there ht) here = ⊥-elim {!!} -- Impossible case: how to prove it?
+⊢-zip (there zp) (there t tpl) (there ht) (there he) = ⊢-zip zp tpl ht he
 
 -- Progress
 
@@ -310,12 +314,15 @@ eqMethod (this cd₁ md₁) (this cd₂ md₂) rewrite ∋-Eq cd₁ cd₂ | ∋-
 -- Substitution
 
 subst-var : ∀ {Γ Γ₁ x el pe C} → Γ ∋ x ∶ C → Γ₁ ⊧ el ∶ proj₂ (unzip Γ) → env-zip Γ el pe → Γ₁ ⊢ subs (Var x) pe ∶ C
-subst-var ni tpl zp = {!!}
+subst-var {.[]} {Γ₁} {x} {.[]} {[]} {C} () here here
+subst-var {((y , _) ∷ xs)} {Γ₁} {x} {.(_ ∷ _)} {.(_ , _) ∷ pe} {C} v (there t env) (there zp) with x ≟ y
+... | yes refl rewrite ∋-First v = t
+... | no ¬p = subst-var (∋-ElimNEq ¬p v) env zp
 
 subst : ∀ {Γ Γ₁ e pe C el} → Γ₁ ⊢ e ∶ C → Γ ⊧ el ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ el pe → Γ ⊢ (subs e pe) ∶ C
 subst-list : ∀ {Γ Γ₁ el pe Cl nl} → Γ₁ ⊧ el ∶ Cl → Γ ⊧ nl ∶ proj₂ (unzip Γ₁) → env-zip Γ₁ nl pe → Γ ⊧ (subs-list el pe) ∶ Cl
 
-subst (T-Var x) pt zp = subst-var x pt zp
+subst (T-Var v) pt zp = subst-var v pt zp
 subst (T-Field e flds f) pt zp = T-Field (subst e pt zp) flds f
 subst (T-Invk e m mp) pt zp = T-Invk (subst e pt zp) m (subst-list mp pt zp)
 subst (T-New flds cp) pt zp = T-New flds (subst-list cp pt zp)
@@ -330,14 +337,15 @@ preservation-list : ∀ {Γ el el' τl} → Γ ⊧ el ∶ τl → el ↦ el' →
 
 preservation (T-Var x) () -- Not necessary anymore
 preservation (T-Field tp fls bnd) (RC-Field ev) = T-Field (preservation tp ev) fls bnd
-preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ (there zp) bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with tps
-... | there tp tpl with ∋-zip tps (there zp) bnd
-...   | e , be rewrite ∋-Eq bnde be with be
-...     | here = {!!}
-...     | there x = {!!}
---preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with ∋-zip tps zp bnd
---... | e , be = {!!} -- rewrite ∋-Eq bnde be = {!!}
---preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
+-- Attempt 1: using an extra lemma
+preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ = ⊢-zip zp tps bnd bnde
+-- Attempt 2: inline proving
+{-
+preservation (T-Field (T-New fs₁ tps) fs₂ bnd) (R-Field fs₃ zp bnde) rewrite eqFields fs₁ fs₂ | eqFields fs₂ fs₃ with zp , tps
+... | there zp' , there t tps' with ∋-zip tps zp bnd
+...   | e , here rewrite ∋-Eq bnde here | ∋-First bnd = t
+...   | e , there be rewrite ∋-Eq bnde (there be) = {!!} -- Recursive case: how to prove it?
+-}
 preservation (T-Invk tp tmt tpl) (RC-InvkRecv ev) = T-Invk (preservation tp ev) tmt tpl
 preservation (T-Invk tp tmt tpl) (RC-InvkArg evl) = T-Invk tp tmt (preservation-list tpl evl)
 preservation (T-Invk (T-New x x₁) tmt tpl) (R-Invk rmt zp) rewrite eqMethod rmt tmt = subst (⊢-Method tmt) tpl zp
