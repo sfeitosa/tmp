@@ -224,8 +224,6 @@ postulate
 ... | yes refl rewrite ∋-First ha | ∋-First hb = refl
 ... | no ¬p = ∋-Eq (∋-ElimNEq ¬p ha) (∋-ElimNEq ¬p hb)
 
--- Still to prove
-
 meth-lookup : ∀ {CD MD m ml} → All (MethodOk CD) (proj₂ (unzip ml)) → ml ∋ m ∶ MD → MethodOk CD MD
 meth-lookup (m ∷ ml) here = m
 meth-lookup (m ∷ ml) (there i) = meth-lookup ml i
