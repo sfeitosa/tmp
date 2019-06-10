@@ -210,16 +210,32 @@ postulate
 
 postulate
   ∋-First : ∀ {A Δ x τ} {a : A} → ((x , a) ∷ Δ) ∋ x ∶ τ → a ≡ τ
-  ∋-Other : ∀ {A Δ x y} {a b : A} → Δ ∋ y ∶ b → x ≢ y → ((x , a) ∷ Δ) ∋ y ∶ b
-  ∋-Nil : ∀ {A x} {a : A} → ¬ ([] ∋ x ∶ a)
-  ∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
-  ∋-ElimNEq : ∀ {A Δ x y} {a b : A} → x ≢ y → ((y , b) ∷ Δ) ∋ x ∶ a → Δ ∋ x ∶ a
+  ∋-Other : ∀ {A Δ x y} {a b : A} → Δ ∋ y ∶ b → x ≢ y → ((x , a) ∷ Δ) ∋ y ∶ b -- not used
+
+∋-Nil : ∀ {A x} {a : A} → ¬ ([] ∋ x ∶ a) -- not used
+∋-Nil = λ ()
+
+∋-ElimNEq : ∀ {A Δ x y} {a b : A} → x ≢ y → ((y , b) ∷ Δ) ∋ x ∶ a → Δ ∋ x ∶ a
+∋-ElimNEq p here = ⊥-elim (p refl)
+∋-ElimNEq p (there hx) = hx
+
+∋-Eq : ∀ {A Δ x} {a b : A} → Δ ∋ x ∶ a → Δ ∋ x ∶ b → a ≡ b
+∋-Eq {Δ = (y , _) ∷ Δ} {x = x} ha hb with x ≟ y
+... | yes refl rewrite ∋-First ha | ∋-First hb = refl
+... | no ¬p = ∋-Eq (∋-ElimNEq ¬p ha) (∋-ElimNEq ¬p hb)
 
 -- Still to prove
 
-postulate 
-  ok-class-meth : ∀ {CD MD m} → ClassOk CD → Class.meths CD ∋ m ∶ MD → MethodOk CD MD
-  ok-ctable-class : ∀ {Δ CD c} → CTOk Δ → Δ ∋ c ∶ CD → ClassOk CD
+meth-lookup : ∀ {CD MD m ml} → All (MethodOk CD) (proj₂ (unzip ml)) → ml ∋ m ∶ MD → MethodOk CD MD
+meth-lookup (m ∷ ml) here = m
+meth-lookup (m ∷ ml) (there i) = meth-lookup ml i
+
+ok-class-meth : ∀ {CD MD m} → ClassOk CD → Class.meths CD ∋ m ∶ MD → MethodOk CD MD
+ok-class-meth (T-Class meths) m = meth-lookup meths m
+
+ok-ctable-class : ∀ {Δ CD c} → CTOk Δ → Δ ∋ c ∶ CD → ClassOk CD
+ok-ctable-class (cd ∷ ctok) here = cd
+ok-ctable-class (cd ∷ ctok) (there c) = ok-ctable-class ctok c
 
 ∋-In : ∀ {A Δ x} {τ : A} → Δ ∋ x ∶ τ → x ∈ (proj₁ (unzip Δ))
 ∋-In here = here
