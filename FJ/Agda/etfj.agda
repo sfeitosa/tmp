@@ -53,8 +53,6 @@ data _∋_∶_ {A : Set} : List (ℕ × A) → ℕ → A → Set where
   here  : ∀ {Δ x d} → ((x , d) ∷ Δ) ∋ x ∶ d
   there : ∀ {Δ x y d₁ d₂} → Δ ∋ x ∶ d₁ → ((y , d₂) ∷ Δ) ∋ x ∶ d₁
 
---_∋_∶_ : {A : Set} → List (ℕ × A) → ℕ → A → Set
-
 data _∈_ {A : Set} : A → List A → Set where
   here  : ∀ {x xs} → x ∈ (x ∷ xs)
   there : ∀ {x y xs} → x ∈ xs → x ∈ (y ∷ xs)
