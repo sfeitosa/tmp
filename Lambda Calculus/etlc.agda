@@ -62,9 +62,6 @@ data Ty : Set where
   _⇒_ : Ty → Ty → Ty
 -}
 
-Ctx : Set
-Ctx = List (ℕ × Ty)
-
 -- Contex_ t lookup
 
 data _∋_∶_ : List (ℕ × Ty) → ℕ → Ty → Set where
