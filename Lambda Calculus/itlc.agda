@@ -12,7 +12,8 @@ open import common
 -- Type and context definitions
 
 {-
-infix 3 _⇒_
+infix 3 _⇒
+_
 data Type : Set where
   bool : Type
   _⇒_ : Type → Type → Type

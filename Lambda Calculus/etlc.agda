@@ -65,7 +65,7 @@ data Ty : Set where
 Ctx : Set
 Ctx = List (ℕ × Ty)
 
--- Context lookup
+-- Contex_ t lookup
 
 data _∋_∶_ : List (ℕ × Ty) → ℕ → Ty → Set where
   here  : ∀ {Γ x τ} → ((x , τ) ∷ Γ) ∋ x ∶ τ
