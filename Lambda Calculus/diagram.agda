@@ -1,5 +1,5 @@
 open import etlc
-open import itlc renaming (Expr to Term ; Ctx to Gam)
+open import itlc renaming (Expr to Term)
 open import common
 
 open import Data.List
@@ -14,47 +14,43 @@ open import Data.List
 
 module diagram where
 
-  elabVar : ∀ {Γ : Ctx}{x τ} → Γ ∋ x ∶ τ → τ ∈ (map proj₂ Γ)
-  elabVar here = Here refl
-  elabVar (there x prf) = There (elabVar prf)
+  elab-var : ∀ {Γ x τ} → Γ ∋ x ∶ τ → (x , τ) ∈ Γ
+  elab-var here = Here refl
+  elab-var (there x p) = There (elab-var p)
 
-  elab : ∀ {Γ : Ctx}{e τ} → Γ ⊢ e ∶ τ → Term (map proj₂ Γ) τ
+  elab : ∀ {Γ e τ} → Γ ⊢ e ∶ τ → Term Γ τ
   elab T-True = true
   elab T-False = false
-  elab (T-Var v) = Var (elabVar v)
-  elab (T-Lam {τ₁ = τ₁} prf) = Lam τ₁ (elab prf)
-  elab (T-App prf prf') = App (elab prf) (elab prf')
+  elab (T-Var x) = Var (elab-var x)
+  elab (T-Lam {x = x} p) = Lam x (elab p)
+  elab (T-App p p₁) = App (elab p) (elab p₁)
 
-  index : ∀ {Γ : Gam}{τ} → τ ∈ Γ → ℕ
-  index (Here px) = 0
-  index (There prf) = suc (index prf)
+   
+  erase-var : ∀ {Γ x τ} → (x , τ) ∈ Γ → Γ ∋ x ∶ τ
+  erase-var (Here refl) = here
+  erase-var (There {x = k} (Here {x = x} refl)) with (proj₁ k) ≟ (proj₁ x)
+  ... | yes p = ?
+  ... | no ¬p = ?
+  erase-var (There {n , t} (There p)) = {!!}
 
-  erase : ∀ {Γ : Gam}{τ} → Term Γ τ → Expr
-  erase true = true
-  erase false = false
-  erase (Var x) = Var (index x)
-  erase (Lam σ e) = Lam 0 (erase e)
-  erase (App e e') = App (erase e) (erase e')
+  erase : ∀ {Γ τ} → Term Γ τ → ∃ (λ e → Γ ⊢ e ∶ τ)
+  erase true = true , T-True
+  erase false = false , T-False
+  erase (Var {x = x} v) = Var x , T-Var (erase-var v)
+  erase (Lam x p) with erase p
+  ...| e , p' = Lam x e , T-Lam p'
+  erase (App p p₁) with erase p | erase p₁
+  ...| e , p1 | e' , p1' = App e e' , T-App p1 p1'
 
-  data _≈_ : Expr -> Expr -> Set where
-    ≈-True : true ≈ true
-    ≈-False : false ≈ false
-    ≈-var : ∀ {x x'} → (Var x) ≈ (Var x')
+  erase-elab-var : ∀ {Γ x τ}(t : (x , τ) ∈ Γ) → elab-var (erase-var t) ≡ t
+  erase-elab-var (Here refl) = refl
+  erase-elab-var (There t) = {!!}
 
-  gamma : Gam → Ctx
-  gamma G = zip (vals G 0) G
-     where
-        vals : Gam -> ℕ -> List ℕ
-        vals [] _ = []
-        vals (t ∷ G) n = n ∷ (vals G (n + 1))
-
-  postulate
-    elab-erase-var : ∀ {Γ x τ}(t : gamma Γ ∋ x ∶ τ) → index (elabVar t) ≡ x
-  
-  elab-erase : ∀ {Γ : Gam}{e τ}(t : gamma Γ ⊢ e ∶ τ) → erase (elab t) ≡ e
-  elab-erase T-True = refl
-  elab-erase T-False = refl
-  elab-erase (T-Var x) = cong Var (elab-erase-var x)
-  elab-erase (T-Lam t) = {!!}
-  elab-erase (T-App t t')
-    = cong₂ App (elab-erase t) (elab-erase t')
+  erase-elab : ∀ {Γ τ}(t : Term Γ τ) → elab (proj₂ (erase t)) ≡ t
+  erase-elab true = refl
+  erase-elab false = refl
+  erase-elab (Var x) = cong Var (erase-elab-var x)
+  erase-elab (Lam x t) with erase-elab t
+  ...| p = cong (Lam x) p
+  erase-elab (App t t₁) with erase-elab t | erase-elab t₁
+  ...| p | p' = cong₂ App p p'
