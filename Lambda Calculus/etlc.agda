@@ -7,6 +7,8 @@ open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl)
 
+open import common
+
 -- Syntax
 
 data Expr : Set where
@@ -53,10 +55,12 @@ data _⟶_ : Expr → Expr → Set where
 
 -- Type and context definition
 
+{-
 infix 7 _⇒_
 data Ty : Set where
   bool : Ty
   _⇒_ : Ty → Ty → Ty
+-}
 
 Ctx : Set
 Ctx = List (ℕ × Ty)

@@ -7,19 +7,23 @@ open import Data.List.Any
 open import Data.List.Membership.Propositional
 open import Relation.Binary.PropositionalEquality
 
+open import common
+
 -- Type and context definitions
 
+{-
 infix 3 _⇒_
 data Type : Set where
   bool : Type
   _⇒_ : Type → Type → Type
-  
+-}
+
 Ctx : Set
-Ctx = List Type
+Ctx = List Ty
 
 -- Syntax and Types
 
-data Expr (Γ : Ctx) : Type → Set where
+data Expr (Γ : Ctx) : Ty → Set where
   true  : Expr Γ bool
   false : Expr Γ bool
   Var   : ∀ {x} → x ∈ Γ → Expr Γ x
@@ -28,7 +32,7 @@ data Expr (Γ : Ctx) : Type → Set where
   
 -- Definition of values and environments
 
-Value : Type → Set
+Value : Ty → Set
 Value bool = Bool
 Value (σ ⇒ τ) = Value (σ) → Value (τ)
 
