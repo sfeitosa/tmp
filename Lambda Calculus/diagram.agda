@@ -4,8 +4,6 @@ open import common
 
 open import Data.List
 open import Data.List.All hiding (map ; zip)
-open import Data.List.Any renaming (here to Here ; there to There) hiding (map ; index)
-open import Data.List.Membership.Propositional
 open import Data.Nat
 open import Data.Product hiding (map ; zip)
 open import Relation.Binary.PropositionalEquality
@@ -22,8 +20,8 @@ module diagram where
   -----------------------------------
 
   elab-var : ∀ {Γ x τ} → Γ ∋ x ∶ τ → (x , τ) ∈ Γ
-  elab-var here = Here refl
-  elab-var (there x p) = There (elab-var p)
+  elab-var here = here 
+  elab-var (there x p) = there x (elab-var p)
 
   elab : ∀ {Γ e τ} → Γ ⊢ e ∶ τ → Term Γ τ
   elab T-True = true
@@ -40,10 +38,8 @@ module diagram where
   -----------------------------------
 
   erase-var : ∀ {Γ x τ} → (x , τ) ∈ Γ → Γ ∋ x ∶ τ
-  erase-var (Here refl) = here
-  erase-var {x = x} (There {x = y , _} i) with x ≟ y
-  erase-var {x = x} (There {y , _} i) | yes p = there {!!} {!!}
-  erase-var {x = x} (There {y , _} i) | no ¬p = there ¬p (erase-var i)
+  erase-var here = here
+  erase-var (there x i) = there x (erase-var i)
 
   erase : ∀ {Γ τ} → Term Γ τ → ∃ (λ e → Γ ⊢ e ∶ τ)
   erase true = true , T-True
@@ -59,8 +55,8 @@ module diagram where
   ------------------------------
 
   erase-elab-var : ∀ {Γ x τ} → (t : (x , τ) ∈ Γ) → elab-var (erase-var t) ≡ t
-  erase-elab-var (Here refl) = refl
-  erase-elab-var (There p) = {!!}
+  erase-elab-var here = refl
+  erase-elab-var (there p i) = cong (there p) (erase-elab-var i)
 
   erase-elab : ∀ {Γ τ}(t : Term Γ τ) → elab (proj₂ (erase t)) ≡ t
   erase-elab true = refl
@@ -85,7 +81,6 @@ module diagram where
   ------------------------------------
 
   eraseVal : ∀ {τ v} → Value τ → Val v
-  eraseVal {bool} false = {!!}
-  eraseVal {bool} true = {!!}
+  eraseVal {bool} v = {!V-False!}
   eraseVal {τ ⇒ τ₁} v = {!!}
 
