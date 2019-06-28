@@ -51,14 +51,55 @@ Value : Ty → Set
 Value bool = Bool
 Value (σ ⇒ τ) = Value (σ) → Value (τ)
 
-{-
-data Val : Ty → Set where
+data Val : Ty → Set 
+Env' : Ctx → Set
+
+data Val where
   V-Bool : Val bool
-  V-Lam  : ∀ {σ τ} → Val σ → Val (σ ⇒ τ)
--}
+  V-Lam  : ∀ {Γ σ τ} → Expr (σ ∷ Γ) τ → Env' Γ → Val (proj₂ σ ⇒ τ)
+
+Env' Γ = All (λ x → Val (proj₂ x)) Γ
 
 Env : Ctx → Set
 Env Γ = All (λ x → Value (proj₂ x)) Γ
+
+
+{-# NON_TERMINATING #-}
+eval' : ∀ {Γ τ} → Env' Γ → Expr Γ τ → Val τ --∃ (λ Δ → Val Δ τ)
+eval' env true = V-Bool
+eval' env false = V-Bool
+eval' env (Var x) = lookup∈ env x
+eval' env (Lam x e) = V-Lam e env
+eval' env (App e e₁) with eval' env e
+eval' env (App e e₁) | V-Lam e' env' with eval' env e₁
+... | v = eval' (v ∷ env') e'
+{-
+eval' {Γ} env true = Γ , V-Bool
+eval' {Γ} env false = Γ , V-Bool
+eval' {Γ} env (Var x) = Γ , lookup∈ env x
+eval' {Γ} env (Lam x e) = Γ , V-Lam e
+eval' {Γ} env (App e e₁) with eval' env e
+eval' {Γ} env (App e e₁) | Γ' , V-Lam e' with eval' env e₁
+eval' {Γ} env (App e e₁) | Γ' , V-Lam e' | Γ'' , v
+  = eval' {!!} e'
+-}
+{-
+eval' env true = V-Bool
+eval' env false = V-Bool
+eval' env (Var x) = lookup∈ env x
+eval' env (Lam x e) = V-Lam e
+eval' env (App e e₁) with eval' env e
+eval' env (App e e₁) | V-Lam e' with eval' env e₁
+... | v = eval' env {!e'!}
+-}
+
+--with eval' env e₁
+--... | v = eval' (v ∷ env) {!e!}
+
+--eval' {!!} {!!}
+
+--with eval' env e
+--... | V-Lam {σ} {τ} = ?
 
 -- Evaluation
 
@@ -67,7 +108,7 @@ eval env true = true
 eval env false = false
 eval env (Var x) = lookup∈ env x
 eval env (Lam σ e) = λ x → (eval (x ∷ env) e)
-eval env (App e e₁) = eval env e (eval env e₁)
+eval env (App e e₁) = {!!} --eval env e (eval env e₁)
 
 -- Examples
 
