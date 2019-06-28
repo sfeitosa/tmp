@@ -1,5 +1,5 @@
 open import etlc
-open import itlc renaming (Expr to Term)
+open import itlc renaming (Expr to Term ; Val to Value)
 open import common
 
 open import Data.List
@@ -71,16 +71,26 @@ module diagram where
   -- Elaborating ETLC to ITLC Value --
   ------------------------------------
 
-  elabVal : ∀ {Γ v τ} → Γ ⊢ v ∶ τ → Val v → Value τ
-  elabVal T-True v = true
-  elabVal T-False v = false
-  elabVal (T-Lam t) v = λ x → {!!}
+  elabVal : ∀ {τ} → ∃₂ (λ Γ v -> Val v × Γ ⊢ v ∶ τ × Env' Γ) → Value τ
+  elabVal (Γ , .true , V-True , T-True , env) = V-True
+  elabVal (Γ , .false , V-False , T-False , env) = V-False
+  elabVal (Γ , .(Lam _ _) , V-Lam , T-Lam prf , env) with elab prf
+  ...| prf' = V-Lam prf' env
+
 
   ------------------------------------
   -- Elaborating ITLC to ETLC Value --
   ------------------------------------
 
-  eraseVal : ∀ {τ v} → Value τ → Val v
-  eraseVal {bool} v = {!V-False!}
-  eraseVal {τ ⇒ τ₁} v = {!!}
+  eraseVal : ∀ {Γ τ} → Value τ → Env' Γ → ∃₂ (λ Γ' v → Val v × Γ' ⊢ v ∶ τ × Env' Γ')
+  eraseVal {Γ} V-True env = Γ , true , V-True , T-True , env
+  eraseVal {Γ} V-False env = Γ , false , V-False , T-False , env 
+  eraseVal {Γ} (V-Lam {σ = n , τ} e env') env
+     = _ , Lam n (proj₁ (erase e)) , V-Lam , T-Lam (proj₂ (erase e)) , env'
 
+  erase-elab-Val : ∀ {Γ τ}(val : Value τ)(env : Env' Γ) →
+    elabVal (eraseVal val env) ≡ val
+  erase-elab-Val V-True env = refl
+  erase-elab-Val V-False env = refl
+  erase-elab-Val (V-Lam e env') env with eraseVal (V-Lam e env') env
+  ...| k = cong₂ V-Lam (erase-elab e) refl 
