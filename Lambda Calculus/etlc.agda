@@ -53,6 +53,26 @@ data _⟶_ : Expr → Expr → Set where
         → Val v₁
         → App (Lam x e) v₁ ⟶ (subs e x v₁)
 
+infix 2 _↠_
+data _↠_ : Expr → Expr → Set where
+  refl  : ∀ {e}
+       → e ↠ e
+  multi : ∀ {e e' e''}
+       → e ⟶ e'
+       → e' ↠ e''
+       → e ↠ e''
+
+data Finished (e : Expr) : Set where
+  done       : Val e
+            → Finished e
+  out-of-gas : Finished e
+
+data Steps (e : Expr) : Set where
+  steps : ∀ {e'}
+       → e ↠ e'
+       → Finished e'
+       → Steps e
+
 -- Type and context definition
 
 {-
@@ -190,4 +210,13 @@ preservation (T-Lam _) ()
 preservation (T-App r₁ r₂) (R-App₁ s) = T-App (preservation r₁ s) r₂
 preservation (T-App r₁ r₂) (R-App₂ v₁ s) = T-App r₁ (preservation r₂ s)
 preservation (T-App (T-Lam r₁) r₂) (R-App v₁) = subst r₂ r₁
+
+-- Evaluation
+
+eval : ∀ {e τ} → ℕ → [] ⊢ e ∶ τ → Steps e
+eval {e} zero t = steps refl out-of-gas
+eval {e} (suc f) t with progress t
+... | Done v = steps refl (done v)
+... | Step stp with eval f (preservation t stp)
+...   | steps stp' fin = steps (multi stp stp') fin
 
