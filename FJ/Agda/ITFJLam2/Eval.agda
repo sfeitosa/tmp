@@ -34,11 +34,8 @@ Fuel = ℕ
 -- Mutual recursive evaluation functions definition
 ---------------------------------------------------
 
---helper : ∀ {τ} → Maybe (Val (class τ)) → {!!}
-
 eval      : ∀ {Γ τ c}  → Fuel → (m : Maybe (Val (class τ))) → CTImpl → Env Γ
                        → Expr Γ (maybe (λ x → just τ) nothing m) c → Maybe (Val c)
---                       → Expr Γ (maybe (λ x → just {!!}) nothing m) c → Maybe (Val c)
 eval-list : ∀ {Γ τ cs} → Fuel → (m : Maybe (Val (class τ))) → CTImpl → Env Γ
                        → All (Expr Γ (maybe (λ x → just τ) nothing m)) cs → Maybe (All Val cs)
 
