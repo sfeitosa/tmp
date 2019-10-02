@@ -34,49 +34,73 @@ Fuel = ℕ
 -- Mutual recursive evaluation functions definition
 ---------------------------------------------------
 
-eval      : ∀ {Γ τ c}  → Fuel → Maybe (Val (class τ)) → CTImpl → Env Γ
-                       → Expr Γ (just τ) c → Maybe (Val c)
-eval-list : ∀ {Γ τ cs} → Fuel → Maybe (Val (class τ)) → CTImpl → Env Γ
-                       → All (Expr Γ (just τ)) cs → Maybe (All Val cs)
+--helper : ∀ {τ} → Maybe (Val (class τ)) → {!!}
+
+eval      : ∀ {Γ τ c}  → Fuel → (m : Maybe (Val (class τ))) → CTImpl → Env Γ
+                       → Expr Γ (maybe (λ x → just τ) nothing m) c → Maybe (Val c)
+--                       → Expr Γ (maybe (λ x → just {!!}) nothing m) c → Maybe (Val c)
+eval-list : ∀ {Γ τ cs} → Fuel → (m : Maybe (Val (class τ))) → CTImpl → Env Γ
+                       → All (Expr Γ (maybe (λ x → just τ) nothing m)) cs → Maybe (All Val cs)
 
 -- Fuel based evaluation for a single expression
 ------------------------------------------------
 
-
--- out of fuel
 eval zero _ _ _ _ = nothing
--- R-This (workaround)
-eval (suc fuel) τ δ γ This = τ
+-- Expressions with This
+eval (suc fuel) (just τ) δ γ This = just τ
 -- R-Var
-eval (suc fuel) τ δ γ (Var x) = just (lookup γ x)
+eval (suc fuel) (just τ) δ γ (Var x) = just (lookup γ x)
 -- RC-Field and R-Field
-eval (suc fuel) τ δ γ (Field e f) with eval fuel τ δ γ e 
+eval (suc fuel) (just τ) δ γ (Field e f) with eval fuel (just τ) δ γ e
 ... | nothing = nothing
 ... | just (VNew p cp) = just (lookup cp (∈-lift p cp f))
--- RC-Invk-Recv, RC-Invk-Arg and R-Invk
-eval (suc fuel) τ δ γ (Invk e m mp) with eval-list fuel τ δ γ mp
+-- RC-Invk-Recv, RC-Invk-Arg, and R-Invk
+eval (suc fuel) (just τ) δ γ (Invk e m mp) with eval-list fuel (just τ) δ γ mp
 ... | nothing = nothing
-... | just mp' with eval fuel τ δ γ e
+... | just mp' with eval fuel (just τ) δ γ e
 ...   | nothing = nothing
 ...   | just v@(VNew {C} {D} p cp) =
           let mi = lookup (implementations D δ) m
             in eval fuel (just v) δ mp' mi
 -- RC-New-Arg
-eval (suc fuel) τ δ γ (New c cp) with eval-list fuel τ δ γ cp
+eval (suc fuel) (just τ) δ γ (New c cp) with eval-list fuel (just τ) δ γ cp
 ... | nothing = nothing
 ... | just cp' = just (VNew refl cp')
 -- R-Cast
-eval (suc fuel) τ δ γ (UCast p e) with eval fuel τ δ γ e
+eval (suc fuel) (just τ) δ γ (UCast p e) with eval fuel (just τ) δ γ e
+... | nothing = nothing
+... | just (VNew p' cp) = just (VNew (<:-trans p' p) cp)
+-- Main expression or lambda term
+-- R-Var
+eval (suc fuel) nothing δ γ (Var x) = just (lookup γ x)
+-- RC-Field and R-Field
+eval {Γ} {τ} (suc fuel) nothing δ γ (Field e f) with eval {Γ} {τ} fuel nothing δ γ e
+... | nothing = nothing
+... | just (VNew p cp) = just (lookup cp (∈-lift p cp f))
+-- RC-Invk-Recv, RC-Invk-Arg, and R-Invk
+eval {Γ} {τ} (suc fuel) nothing δ γ (Invk e m mp) with eval-list {Γ} {τ} fuel nothing δ γ mp
+... | nothing = nothing
+... | just mp' with eval {Γ} {τ} fuel nothing δ γ e
+...   | nothing = nothing
+...   | just v@(VNew {C} {D} p cp) =
+          let mi = lookup (implementations D δ) m
+            in eval fuel (just v) δ mp' mi
+-- RC-New-Arg
+eval {Γ} {τ} (suc fuel) nothing δ γ (New c cp) with eval-list {Γ} {τ} fuel nothing δ γ cp
+... | nothing = nothing
+... | just cp' = just (VNew refl cp')
+-- R-Cast
+eval {Γ} {τ} (suc fuel) nothing δ γ (UCast p e) with eval {Γ} {τ} fuel nothing δ γ e
 ... | nothing = nothing
 ... | just (VNew p' cp) = just (VNew (<:-trans p' p) cp)
 -- R-Lam
-eval (suc fuel) τ δ γ (Lam i b) = just (VLam b)
--- R-Invk-Lam
-eval (suc fuel) τ δ γ (InvkL e lp) with eval-list fuel τ δ γ lp
+eval (suc fuel) nothing δ γ (Lam i e) = just (VLam e)
+-- R-Lam-Arg and R-Invk-Lam
+eval {Γ} {τ} (suc fuel) nothing δ γ (InvkL e lp) with eval-list {Γ} {τ} fuel nothing δ γ lp
 ... | nothing = nothing
-... | just lp' with eval fuel τ δ γ e
+... | just lp' with eval {Γ} {τ} fuel nothing δ γ e
 ...   | nothing = nothing
-...   | just (VLam b) = eval fuel τ δ lp' {!b!}
+...   | just (VLam b) = eval {τ = τ} fuel nothing δ lp' b
 
 -- Fuel based evaluation for a list of expressions
 --------------------------------------------------

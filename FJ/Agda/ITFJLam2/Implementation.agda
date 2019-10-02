@@ -54,8 +54,8 @@ cast-this p (Field e f) = Field (cast-this p e) f
 cast-this p (Invk e m mp) = Invk (cast-this p e) m (cast-this-list p mp)
 cast-this p (New c cp) = New c (cast-this-list p cp)
 cast-this p (UCast p' e) = UCast p' (cast-this p e)
-cast-this p (Lam i e) = Lam i (cast-this p e)
-cast-this p (InvkL e lp) = InvkL (cast-this p e) (cast-this-list p lp)
+--cast-this p (Lam i e) = Lam i (cast-this p e)
+--cast-this p (InvkL e lp) = InvkL (cast-this p e) (cast-this-list p lp)
 
 -- Casting the 'this' pointer for a list of expressions
 -------------------------------------------------------

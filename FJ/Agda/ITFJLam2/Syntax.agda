@@ -49,17 +49,17 @@ data Expr (Γ : Ctx) : Maybe Cl → Ty → Set where
                     → All (Expr Γ τ) (proj₁ m) → Expr Γ τ (proj₂ m)
   New   : ∀ {τ} c   → All (Expr Γ τ) (fields (ξ Δ) c) → Expr Γ τ (class c)
   UCast : ∀ {c d τ} → c <: d → Expr Γ τ (class c) → Expr Γ τ (class d)
-  Lam   : ∀ {τ} i   → Expr (proj₁ (isignature (ζ Δ) i)) τ (proj₂ (isignature (ζ Δ) i))
-                    → Expr Γ τ (interface i)
-  InvkL : ∀ {i τ}   → Expr Γ τ (interface i) → All (Expr Γ τ) (proj₁ (isignature (ζ Δ) i))
-                    → Expr Γ τ (proj₂ (isignature (ζ Δ) i))
+  Lam   : ∀ i   → Expr (proj₁ (isignature (ζ Δ) i)) nothing (proj₂ (isignature (ζ Δ) i))
+                    → Expr Γ nothing (interface i)
+  InvkL : ∀ {i}     → Expr Γ nothing (interface i) → All (Expr Γ nothing) (proj₁ (isignature (ζ Δ) i))
+                    → Expr Γ nothing (proj₂ (isignature (ζ Δ) i))
   
 -- Inherently-typed values
 --------------------------
 
 data Val : Ty → Set where
   VNew : ∀ {c d} → c <: d → All Val (fields (ξ Δ) c) → Val (class d)
-  VLam : ∀ {i τ}   → Expr (proj₁ (isignature (ζ Δ) i)) τ (proj₂ (isignature (ζ Δ) i)) → Val (interface i)
+  VLam : ∀ {i}   → Expr (proj₁ (isignature (ζ Δ) i)) nothing (proj₂ (isignature (ζ Δ) i)) → Val (interface i)
   
 -- Liftting de Bruijn index for 'fields'
 ----------------------------------------
