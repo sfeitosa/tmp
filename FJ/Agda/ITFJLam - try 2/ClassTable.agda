@@ -5,7 +5,7 @@
 -- Date: Between Feb and Apr / 2019          --
 -----------------------------------------------
 
-open import Data.Nat
+open import Data.Nat hiding (_+_)
 
 module ClassTable (c : ℕ) (i : ℕ) where
 
@@ -22,12 +22,7 @@ open import Data.List.Relation.Sublist.Propositional hiding (lookup)
 
 Cl = Fin c
 Fi = Fin i
-
--- Types
-
-data Ty : Set where
-  class     : Cl → Ty
-  interface : Fi → Ty
+--Ty = Cl + Fi
 
 -- Class Signature Definition
 -----------------------------
@@ -35,12 +30,12 @@ data Ty : Set where
 record CSig : Set where
   field
     supers : List Cl -- Inheritance Hierarchy 
-    flds   : List Ty
-    signs  : List (List Ty × Ty)
+    flds   : List Cl
+    signs  : List (List Cl × Cl)
 
 record ISig : Set where
   field
-    sign   : List Ty × Ty
+    sign   : List Cl × Cl
 
 -- Table with Class Signatures
 ------------------------------
@@ -49,7 +44,7 @@ CTSig : Set
 CTSig = Vec CSig c
 
 ITSig : Set
-ITSig = Vec ISig i 
+ITSig = Vec ISig i
 
 ---------------------------
 -- Auxiliary definitions --
@@ -58,18 +53,18 @@ ITSig = Vec ISig i
 -- Obtaining fields from a given class
 --------------------------------------
 
-fields : CTSig → Cl → List Ty
+fields : CTSig → Cl → List Cl
 fields ξ τ =
   concatMap (λ τ₁ → CSig.flds (lookup ξ τ₁)) (CSig.supers (lookup ξ τ)) ++ CSig.flds (lookup ξ τ)
 
 -- Obtaining method types form a class
 --------------------------------------
 
-signatures : CTSig → Cl → List (List Ty × Ty)
+signatures : CTSig → Cl → List (List Cl × Cl)
 signatures ξ τ =
   concatMap (λ τ₁ → CSig.signs (lookup ξ τ₁)) (CSig.supers (lookup ξ τ)) ++ CSig.signs (lookup ξ τ)
 
-isignature : ITSig → Fi → List Ty × Ty
+isignature : ITSig → Fi → List Cl × Cl
 isignature ξ τ = ISig.sign (lookup ξ τ)
 
 -- Well-formed class table definition

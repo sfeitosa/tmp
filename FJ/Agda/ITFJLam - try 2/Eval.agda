@@ -34,14 +34,13 @@ Fuel = ℕ
 -- Mutual recursive evaluation functions definition
 ---------------------------------------------------
 
-eval      : ∀ {Γ τ c}  → Fuel → Maybe (Val (class τ)) → CTImpl → Env Γ
-                       → Expr Γ τ c → Maybe (Val c)
+eval      : ∀ {Γ τ c}  → Fuel → Maybe (Val τ) → CTImpl → Env Γ
+                       → Expr Γ (just τ) c → Maybe (Val c)
 eval-list : ∀ {Γ τ cs} → Fuel → Maybe (Val τ) → CTImpl → Env Γ
                        → All (Expr Γ (just τ)) cs → Maybe (All Val cs)
 
 -- Fuel based evaluation for a single expression
 ------------------------------------------------
-
 
 -- out of fuel
 eval zero _ _ _ _ = nothing
@@ -69,14 +68,9 @@ eval (suc fuel) τ δ γ (New c cp) with eval-list fuel τ δ γ cp
 eval (suc fuel) τ δ γ (UCast p e) with eval fuel τ δ γ e
 ... | nothing = nothing
 ... | just (VNew p' cp) = just (VNew (<:-trans p' p) cp)
--- R-Lam
-eval (suc fuel) τ δ γ (Lam i b) = just (VLam b)
--- R-Invk-Lam
-eval (suc fuel) τ δ γ (InvkL e lp) with eval-list fuel τ δ γ lp
+eval (suc fuel) τ δ γ (InvkL i e lp) with eval-list fuel τ δ γ lp
 ... | nothing = nothing
-... | just lp' with eval fuel τ δ γ e
-...   | nothing = nothing
-...   | just (VLam b) = eval fuel τ δ lp' {!b!}
+... | just lp' = eval fuel τ δ lp' e
 
 -- Fuel based evaluation for a list of expressions
 --------------------------------------------------
